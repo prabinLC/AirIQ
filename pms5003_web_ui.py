@@ -4,10 +4,11 @@ PMS5003 Air Quality Monitor with Web UI
 Displays real-time PM sensor data in a web browser
 """
 
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, send_from_directory
 from pms5003_reader import PMS5003
 import threading
 import time
+import os
 
 app = Flask(__name__)
 
@@ -72,7 +73,9 @@ def read_sensor_loop():
                         'connected': True,
                         'error': None
                     })
+                print(f"Read data: PM2.5={data['pm25_atm']} PM10={data['pm10_atm']} PM1={data['pm1_atm']}")
             else:
+                print("No data received from sensor")
                 with sensor_lock:
                     sensor_data['error'] = 'Failed to read data'
             
@@ -109,6 +112,53 @@ def get_status():
             'connected': sensor_data['connected'],
             'error': sensor_data['error']
         })
+
+@app.route('/api/history')
+def get_history():
+    """API endpoint to get current and historical data"""
+    with sensor_lock:
+        current_data = sensor_data.copy()
+    
+    # Add air quality level
+    aqi = get_air_quality_level(current_data['pm25_atm'])
+    
+    # Format current data for frontend
+    current = {
+        'pm1': current_data['pm1_atm'],
+        'pm25': current_data['pm25_atm'],
+        'pm10': current_data['pm10_atm'],
+        'timestamp': current_data['timestamp'],
+        'aqi': aqi['level'],
+        'aqi_color': aqi['color'],
+        'aqi_description': aqi['description']
+    }
+    
+    # For now, create a simple history from current reading
+    # In future, this could pull from database
+    history = []
+    if current_data['timestamp']:
+        history.append({
+            'time': current_data['timestamp'],
+            'pm25': current_data['pm25_atm'],
+            'pm10': current_data['pm10_atm']
+        })
+    
+    return jsonify({
+        'current': current,
+        'history': history,
+        'error': current_data.get('error')
+    })
+
+@app.route('/api/db/all')
+def get_all_data():
+    """API endpoint to get all database records (placeholder)"""
+    # Return empty array for now since we don't have database storage in this version
+    return jsonify([])
+
+@app.route('/logo/<filename>')
+def serve_logo(filename):
+    """Serve logo files"""
+    return send_from_directory('logo', filename)
 
 if __name__ == '__main__':
     # Start sensor reading in background thread
