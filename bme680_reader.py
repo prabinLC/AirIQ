@@ -26,11 +26,16 @@ class BME680Reader:
         self.sensor = None
         self.i2c = None
         
-    def connect(self):
+    def connect(self, shared_i2c=None):
         """Initialize I2C connection and sensor"""
         try:
-            # Initialize I2C bus on GPIO 2 (SDA) and GPIO 3 (SCL)
-            self.i2c = busio.I2C(board.SCL, board.SDA)
+            # Use shared I2C bus if provided, otherwise create one
+            if shared_i2c is not None:
+                self.i2c = shared_i2c
+                self._owns_i2c = False
+            else:
+                self.i2c = busio.I2C(board.SCL, board.SDA)
+                self._owns_i2c = True
             
             # Initialize BME680 sensor
             self.sensor = adafruit_bme680.Adafruit_BME680_I2C(
@@ -50,9 +55,9 @@ class BME680Reader:
     
     def disconnect(self):
         """Close I2C connection"""
-        if self.i2c:
+        if self.i2c and getattr(self, '_owns_i2c', True):
             self.i2c.deinit()
-            print("Disconnected from BME680")
+        print("Disconnected from BME680")
     
     def read_data(self):
         """

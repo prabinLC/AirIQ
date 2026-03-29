@@ -24,15 +24,20 @@ class ENS160Reader:
         self.sensor = None
         self.i2c = None
         
-    def connect(self):
+    def connect(self, shared_i2c=None):
         """Initialize I2C connection and sensor"""
         try:
-            # Initialize I2C bus on GPIO 2 (SDA) and GPIO 3 (SCL)
-            self.i2c = busio.I2C(board.SCL, board.SDA)
-            
+            # Use shared I2C bus if provided, otherwise create one
+            if shared_i2c is not None:
+                self.i2c = shared_i2c
+                self._owns_i2c = False
+            else:
+                self.i2c = busio.I2C(board.SCL, board.SDA)
+                self._owns_i2c = True
+
             # Initialize ENS160 sensor
             self.sensor = adafruit_ens160.ENS160(self.i2c, address=self.i2c_address)
-            
+
             print(f"Connected to ENS160 at address 0x{self.i2c_address:02x}")
             time.sleep(1)  # Allow sensor to stabilize
             return True
@@ -42,9 +47,9 @@ class ENS160Reader:
     
     def disconnect(self):
         """Close I2C connection"""
-        if self.i2c:
+        if self.i2c and getattr(self, '_owns_i2c', True):
             self.i2c.deinit()
-            print("Disconnected from ENS160")
+        print("Disconnected from ENS160")
     
     def get_aqi_description(self, aqi):
         """Get human-readable description for AQI value"""
