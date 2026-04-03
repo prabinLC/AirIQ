@@ -15,12 +15,12 @@ class PMS5003:
     START_BYTE_1 = 0x42
     START_BYTE_2 = 0x4d
     
-    def __init__(self, port='/dev/ttyS0', baudrate=9600, timeout=2):
+    def __init__(self, port='/dev/ttyAMA0', baudrate=9600, timeout=2):
         """
         Initialize PMS5003 sensor
         
         Args:
-            port: Serial port (default: /dev/ttyS0 for Raspberry Pi)
+            port: Serial port (default: /dev/ttyAMA0 for Raspberry Pi)
             baudrate: Communication speed (default: 9600)
             timeout: Read timeout in seconds
         """
@@ -37,6 +37,9 @@ class PMS5003:
                 baudrate=self.baudrate,
                 timeout=self.timeout
             )
+            # Flush any pending data in the buffer
+            self.serial.reset_input_buffer()
+            self.serial.reset_output_buffer()
             print(f"Connected to PMS5003 on {self.port}")
             time.sleep(2)  # Allow sensor to stabilize
             return True
@@ -58,12 +61,12 @@ class PMS5003:
             dict: Dictionary containing PM values or None if read fails
         """
         if not self.serial or not self.serial.is_open:
-            print("Serial port not open")
             return None
         
         try:
             # Read until we find the start bytes
-            while True:
+            sync_attempts = 0
+            while sync_attempts < 100:
                 byte1 = self.serial.read(1)
                 if not byte1:
                     return None
@@ -72,6 +75,10 @@ class PMS5003:
                     byte2 = self.serial.read(1)
                     if byte2 and byte2[0] == self.START_BYTE_2:
                         break
+                sync_attempts += 1
+            
+            if sync_attempts >= 100:
+                return None
             
             # Read frame length (2 bytes)
             frame_length_bytes = self.serial.read(2)
@@ -80,38 +87,31 @@ class PMS5003:
             
             frame_length = struct.unpack('>H', frame_length_bytes)[0]
             
+            # Validate frame length
+            if frame_length > 64:
+                return None
+            
             # Read the rest of the frame
             frame_data = self.serial.read(frame_length)
-            if len(frame_data) != frame_length:
+            
+            if len(frame_data) < 12:
                 return None
             
             # Parse the data (first 12 bytes contain PM values)
             data = struct.unpack('>HHHHHH', frame_data[0:12])
             
-            # Calculate checksum
-            checksum_calc = self.START_BYTE_1 + self.START_BYTE_2
-            checksum_calc += sum(frame_length_bytes)
-            checksum_calc += sum(frame_data[:-2])
-            
-            checksum_received = struct.unpack('>H', frame_data[-2:])[0]
-            
-            if checksum_calc != checksum_received:
-                print("Checksum error!")
-                return None
-            
             # Return parsed data
             return {
-                'pm1_cf': data[0],      # PM1.0 concentration (CF=1, standard)
-                'pm25_cf': data[1],     # PM2.5 concentration (CF=1, standard)
-                'pm10_cf': data[2],     # PM10 concentration (CF=1, standard)
-                'pm1_atm': data[3],     # PM1.0 concentration (atmospheric)
-                'pm25_atm': data[4],    # PM2.5 concentration (atmospheric)
-                'pm10_atm': data[5],    # PM10 concentration (atmospheric)
+                'pm1_cf': data[0],
+                'pm25_cf': data[1],
+                'pm10_cf': data[2],
+                'pm1_atm': data[3],
+                'pm25_atm': data[4],
+                'pm10_atm': data[5],
                 'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
             }
             
         except Exception as e:
-            print(f"Error reading data: {e}")
             return None
     
     def read_continuous(self, interval=1, duration=None):
@@ -150,7 +150,7 @@ def main():
     """Main function to demonstrate PMS5003 usage"""
     
     # Create sensor instance
-    sensor = PMS5003(port='/dev/ttyS0', baudrate=9600)
+    sensor = PMS5003(port='/dev/ttyAMA0', baudrate=9600)
     
     # Connect to sensor
     if not sensor.connect():

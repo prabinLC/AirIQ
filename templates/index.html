@@ -197,6 +197,13 @@ body {
   font-weight: 700;
   color: var(--good);
 }
+.sb-status [style*="display: flex"] {
+  transition: opacity 0.3s ease, color 0.3s ease;
+}
+.sb-status [style*="display: flex"][style*="var(--poor)"] {
+  opacity: 0.6;
+  color: var(--poor);
+}
 
 .sb-time {
   font-family: var(--mono);
@@ -723,8 +730,12 @@ footer {
 
   <!-- SIDEBAR -->
   <div class="sidebar">
-    <div class="sb-head">Status</div>
-    <div class="sb-status"><div class="live-dot"></div> Sensors Active</div>
+    <div class="sb-head">Sensors</div>
+    <div class="sb-status" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+      <div id="stat-pms" style="font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 6px;"><div class="live-dot" style="background:var(--ink3)"></div> PMS5003 (PM)</div>
+      <div id="stat-bme" style="font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 6px;"><div class="live-dot" style="background:var(--ink3)"></div> BME680 (Env)</div>
+      <div id="stat-ens" style="font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 6px;"><div class="live-dot" style="background:var(--ink3)"></div> ENS160 (Gas)</div>
+    </div>
 
     <div class="sb-head">Quick Stats</div>
     <div class="sb-card">
@@ -733,7 +744,7 @@ footer {
     </div>
     <div class="sb-card">
       <div class="sb-label">Temperature</div>
-      <div class="sb-value" id="sidebar-temp">--<span class="sb-unit">°C</span></div>
+      <div class="sb-value" id="sidebar-temp">--<span class="sb-unit">°F</span></div>
     </div>
     <div class="sb-card">
       <div class="sb-label">AQI Level</div>
@@ -758,7 +769,7 @@ footer {
 
     <div class="page-intro">
       <h1>Integrated Sensor Dashboard</h1>
-      <p>Real-time readings from PMS5003 · BME680 · ENS160 — refreshing every 5 seconds</p>
+      <p>Real-time readings from PMS5003 · BME680 · ENS160 — refreshing every 10 seconds</p>
     </div>
 
     <div class="error-bar" id="error"></div>
@@ -850,7 +861,7 @@ footer {
             <span class="mcard-label">Temperature</span>
             <div class="mcard-icon" style="background:#eff6ff">🌡️</div>
           </div>
-          <div class="mcard-value" id="temperature">--<span class="mcard-unit">°C</span></div>
+          <div class="mcard-value" id="temperature">--<span class="mcard-unit">°F</span></div>
           <div class="mcard-source">BME680 · I²C</div>
           <div class="mcard-bar" id="b-temp" style="background:var(--blue)"></div>
         </div>
@@ -956,7 +967,7 @@ footer {
         <div class="chart-header">
           <div class="chart-title">Temperature & Humidity Over Time</div>
           <div class="chart-legend">
-            <div class="legend-item"><div class="legend-dot" style="background:#0ea5e9"></div>Temperature (°C)</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#0ea5e9"></div>Temperature (°F)</div>
             <div class="legend-item"><div class="legend-dot" style="background:#16a34a"></div>Humidity (%)</div>
           </div>
         </div>
@@ -1039,21 +1050,60 @@ function updateClock() {
 setInterval(updateClock, 1000); updateClock();
 
 // ── AQI CONFIG ──
+// AQI Scale (1-5) per ENS160 UPE Standard
+// 1: Excellent (0-50 ePPM) - Highest air quality
+// 2: Good (51-100 ePPM) - Acceptable air quality
+// 3: Moderate (101-150 ePPM) - Sensitive groups should limit outdoor time
+// 4: Poor (151-200 ePPM) - Everyone should limit outdoor time
+// 5: Unhealthy (>200 ePPM) - Avoid outdoor activity
 const AQI_INFO = {
-  1: { name: 'Good',      desc: 'Air quality is excellent. Safe for everyone — enjoy outdoor activities freely.', color: 'var(--good)',  bg: 'var(--good-bg)',  ring: 'var(--good-ring)'  },
-  2: { name: 'Fair',      desc: 'Air quality is acceptable. A small number of sensitive individuals may experience mild discomfort.', color: '#65a30d', bg: '#f7fee7', ring: '#d9f99d' },
+  1: { name: 'Excellent',  desc: 'Air quality is excellent. Safe for everyone — enjoy outdoor activities freely.', color: 'var(--good)',  bg: 'var(--good-bg)',  ring: 'var(--good-ring)'  },
+  2: { name: 'Good',      desc: 'Air quality is acceptable. A small number of sensitive individuals may experience mild discomfort.', color: '#65a30d', bg: '#f7fee7', ring: '#d9f99d' },
   3: { name: 'Moderate',  desc: 'Sensitive groups (elderly, children, asthma sufferers) should reduce prolonged outdoor exertion.', color: 'var(--mod)',  bg: 'var(--mod-bg)',  ring: 'var(--mod-ring)'  },
   4: { name: 'Poor',      desc: 'Everyone may begin to experience health effects. Sensitive groups should avoid outdoor activity.', color: 'var(--poor)', bg: 'var(--poor-bg)', ring: 'var(--poor-ring)' },
-  5: { name: 'Hazardous', desc: 'Health alert — serious effects possible for everyone. Stay indoors and keep windows closed.', color: 'var(--haz)',  bg: 'var(--haz-bg)',  ring: 'var(--haz-ring)'  },
+  5: { name: 'Unhealthy', desc: 'Health alert — serious effects possible for everyone. Stay indoors and keep windows closed.', color: 'var(--haz)',  bg: 'var(--haz-bg)',  ring: 'var(--haz-ring)'  },
 };
 
-function getAqiInfo(v) { return AQI_INFO[v] || AQI_INFO[1]; }
+function getAqiInfo(v) { 
+  // Ensure AQI is constrained to 1-5 range
+  const constrainedVal = Math.max(1, Math.min(5, Math.round(v)));
+  return AQI_INFO[constrainedVal] || AQI_INFO[1];
+}
 
-function pmStatus(v) {
-  if (v <= 12)  return { label: 'Good',      icon: '✅', desc: 'Clean air — safe for all activities.',          color: 'var(--good)', bg: 'var(--good-bg)', ring: 'var(--good-ring)' };
-  if (v <= 35)  return { label: 'Moderate',  icon: '🟡', desc: 'Acceptable. Sensitive groups should take care.', color: 'var(--mod)',  bg: 'var(--mod-bg)',  ring: 'var(--mod-ring)'  };
-  if (v <= 55)  return { label: 'Poor',      icon: '😷', desc: 'Unhealthy for sensitive groups outdoors.',        color: 'var(--poor)', bg: 'var(--poor-bg)', ring: 'var(--poor-ring)' };
-  return              { label: 'Hazardous', icon: '⚠️', desc: 'Unhealthy — limit all outdoor exposure now.',      color: 'var(--haz)',  bg: 'var(--haz-bg)',  ring: 'var(--haz-ring)'  };
+function getPmStatusObj(label, desc) {
+  if (label === 'Good')      return { label, icon: '✅', desc, color: 'var(--good)', bg: 'var(--good-bg)', ring: 'var(--good-ring)' };
+  if (label === 'Moderate')  return { label, icon: '🟡', desc, color: 'var(--mod)',  bg: 'var(--mod-bg)',  ring: 'var(--mod-ring)'  };
+  if (label === 'Unhealthy for Sensitive Groups') return { label, icon: '😷', desc, color: 'var(--poor)', bg: 'var(--poor-bg)', ring: 'var(--poor-ring)' };
+  if (label === 'Unhealthy') return { label, icon: '🔴', desc, color: '#dc2626', bg: '#fef2f2', ring: '#fecaca' };
+  if (label === 'Very Unhealthy') return { label, icon: '🟣', desc, color: '#9333ea', bg: '#faf5ff', ring: '#e9d5ff' };
+  return { label: 'Hazardous', icon: '⚠️', desc, color: 'var(--haz)',  bg: 'var(--haz-bg)',  ring: 'var(--haz-ring)'  };
+}
+
+function pm1Status(v) {
+  if (v <= 10) return getPmStatusObj('Good', 'Air quality is satisfactory, little or no risk.');
+  if (v <= 25) return getPmStatusObj('Moderate', 'Acceptable; sensitive individuals may have minor symptoms.');
+  if (v <= 35) return getPmStatusObj('Unhealthy for Sensitive Groups', 'Elderly, children, and people with respiratory issues may be affected.');
+  if (v <= 55) return getPmStatusObj('Unhealthy', 'General public begins to experience health effects.');
+  if (v <= 75) return getPmStatusObj('Very Unhealthy', 'Health alerts; everyone may experience serious effects.');
+  return getPmStatusObj('Hazardous', 'Emergency conditions; entire population at risk.');
+}
+
+function pm25Status(v) {
+  if (v <= 12.0)  return getPmStatusObj('Good', 'Air quality is satisfactory, little or no risk.');
+  if (v <= 35.4)  return getPmStatusObj('Moderate', 'Acceptable; sensitive individuals may have minor symptoms.');
+  if (v <= 55.4)  return getPmStatusObj('Unhealthy for Sensitive Groups', 'Elderly, children, and people with respiratory issues may be affected.');
+  if (v <= 150.4) return getPmStatusObj('Unhealthy', 'General public begins to experience health effects.');
+  if (v <= 250.4) return getPmStatusObj('Very Unhealthy', 'Health alerts; everyone may experience serious effects.');
+  return getPmStatusObj('Hazardous', 'Emergency conditions; entire population at risk.');
+}
+
+function pm10Status(v) {
+  if (v <= 54)  return getPmStatusObj('Good', 'Air quality is satisfactory, little or no risk.');
+  if (v <= 154) return getPmStatusObj('Moderate', 'Acceptable; sensitive individuals may have minor symptoms.');
+  if (v <= 254) return getPmStatusObj('Unhealthy for Sensitive Groups', 'Elderly, children, and people with respiratory issues may be affected.');
+  if (v <= 354) return getPmStatusObj('Unhealthy', 'General public begins to experience health effects.');
+  if (v <= 424) return getPmStatusObj('Very Unhealthy', 'Health alerts; everyone may experience serious effects.');
+  return getPmStatusObj('Hazardous', 'Emergency conditions; entire population at risk.');
 }
 function eco2Status(v) {
   if (v < 600)  return { label: 'Normal',   color: 'var(--good)', bg: 'var(--good-bg)', ring: 'var(--good-ring)' };
@@ -1092,23 +1142,24 @@ function updateMetrics(data) {
   document.getElementById('pm25').innerHTML = `${f1(data.pm25)}<span class="mcard-unit">µg/m³</span>`;
   document.getElementById('pm10').innerHTML = `${f1(data.pm10)}<span class="mcard-unit">µg/m³</span>`;
 
-  const pm25s = pmStatus(data.pm25 ?? 0);
-  const pm10s = pmStatus(data.pm10 ?? 0);
-  applyPill('p-pm1',  pmStatus(data.pm1 ?? 0));
+  const pm25s = pm25Status(data.pm25 ?? 0);
+  const pm10s = pm10Status(data.pm10 ?? 0);
+  applyPill('p-pm1',  pm1Status(data.pm1 ?? 0));
   applyPill('p-pm25', pm25s);
   applyPill('p-pm10', pm10s);
-  applyBar('b-pm1',  (data.pm1  / 75  * 100), pmStatus(data.pm1 ?? 0).color);
-  applyBar('b-pm25', (data.pm25 / 150 * 100), pm25s.color);
-  applyBar('b-pm10', (data.pm10 / 250 * 100), pm10s.color);
+  applyBar('b-pm1',  (data.pm1  / 75  * 100), pm1Status(data.pm1 ?? 0).color);
+  applyBar('b-pm25', (data.pm25 / 250.5 * 100), pm25s.color);
+  applyBar('b-pm10', (data.pm10 / 425 * 100), pm10s.color);
 
   // BME680
-  document.getElementById('temperature').innerHTML = `${f1(data.temperature)}<span class="mcard-unit">°C</span>`;
+  const tempF = (data.temperature * 9/5) + 32;
+  document.getElementById('temperature').innerHTML = `${f1(tempF)}<span class="mcard-unit">°F</span>`;
   document.getElementById('humidity').innerHTML    = `${f1(data.humidity)}<span class="mcard-unit">%RH</span>`;
   document.getElementById('pressure').innerHTML   = `${f1(data.pressure)}<span class="mcard-unit">hPa</span>`;
   document.getElementById('altitude').innerHTML   = `${f1(data.altitude)}<span class="mcard-unit">m</span>`;
   document.getElementById('gas').innerHTML        = `${f0(data.gas)}<span class="mcard-unit">Ω</span>`;
 
-  applyBar('b-temp', ((data.temperature - 15) / 25 * 100), 'var(--blue)');
+  applyBar('b-temp', ((tempF - 59) / 77 * 100), 'var(--blue)');
   applyBar('b-hum',  data.humidity, 'var(--good)');
   applyBar('b-pres', ((data.pressure - 980) / 60 * 100), '#8b5cf6');
   applyBar('b-gas',  (data.gas / 120000 * 100), data.gas > 50000 ? 'var(--good)' : 'var(--poor)');
@@ -1123,8 +1174,8 @@ function updateMetrics(data) {
   applyBar('b-eco2', (data.eco2 / 5000 * 100), eco2s.color);
   applyBar('b-tvoc', (data.tvoc / 1000 * 100), tvocs.color);
 
-  // AQI Hero
-  const aqiVal = data.aqi ?? 1;
+  // AQI Hero (constrained to 1-5 scale)
+  const aqiVal = Math.max(1, Math.min(5, Math.round(data.aqi ?? 1)));
   const info = getAqiInfo(aqiVal);
   document.getElementById('aqi').textContent      = aqiVal;
   document.getElementById('aqi-desc').textContent = data.aqi_description || info.name;
@@ -1139,7 +1190,7 @@ function updateMetrics(data) {
   });
 
   // PM AQI badge (derived from pm25 client-side)
-  const pmBadgeSt = pmStatus(data.pm25 ?? 0);
+  const pmBadgeSt = pm25Status(data.pm25 ?? 0);
   const pmIconEl = document.getElementById('pm-aqi-icon');
   if (pmIconEl) { pmIconEl.textContent = pmBadgeSt.icon; pmIconEl.style.background = pmBadgeSt.bg; }
   document.getElementById('pm-aqi-badge').innerHTML =
@@ -1160,8 +1211,9 @@ function updateMetrics(data) {
 
   // Sidebar
   document.getElementById('sidebar-pm25').innerHTML = `${f1(data.pm25)}<span class="sb-unit">µg/m³</span>`;
-  document.getElementById('sidebar-temp').innerHTML = `${f1(data.temperature)}<span class="sb-unit">°C</span>`;
+  document.getElementById('sidebar-temp').innerHTML = `${f1(tempF)}<span class="sb-unit">°F</span>`;
   document.getElementById('sidebar-aqi').textContent = aqiVal;
+  document.getElementById('sidebar-aqi').style.color = info.color;
   document.getElementById('sidebar-time').textContent = new Date().toLocaleTimeString('en-GB', { hour12: false });
 
   window._lastSensorData = data;
@@ -1249,7 +1301,7 @@ function updateCharts(labels, history) {
         ...BASE_OPTS,
         scales: {
           x: BASE_OPTS.scales.x,
-          y:  { ...BASE_OPTS.scales.y, position: 'left',  title: { display: true, text: '°C', color: '#6b7494' } },
+          y:  { ...BASE_OPTS.scales.y, position: 'left',  title: { display: true, text: '°F', color: '#6b7494' } },
           y1: { type:'linear', position:'right', beginAtZero:true, grid:{drawOnChartArea:false}, ticks:{color:'#6b7494'}, title:{display:true,text:'%',color:'#6b7494'} }
         }
       }
@@ -1287,40 +1339,101 @@ function updateCharts(labels, history) {
 
 // ── REFRESH (real API) ──
 function refreshData() {
-  fetch('/api/history')
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  
+  fetch('/api/history', { signal: controller.signal })
     .then(r => r.json())
     .then(data => {
+      clearTimeout(timeoutId);
       if (data.error) { showErr('API error: ' + data.error); return; }
       hideErr();
       updateMetrics(data.current);
       updateCharts(data.history.map(h => h.time), data.history);
     })
-    .catch(err => showErr('Could not reach /api/history — ' + err.message));
+    .catch(err => {
+      clearTimeout(timeoutId);
+      showErr('Connection failed — check Flask server is running on port 8000');
+      console.error('refreshData error:', err.message);
+    });
 }
 
 function showErr(m) { const e = document.getElementById('error'); e.style.display='block'; e.textContent='⚠ '+m; }
 function hideErr() { document.getElementById('error').style.display='none'; }
 
+// ── SENSOR STATUS ──
+function updateSensorStatus() {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  
+  fetch('/api/sensor/status', { signal: controller.signal })
+    .then(r => r.json())
+    .then(data => {
+      clearTimeout(timeoutId);
+      const sensors = [
+        { id: 'pms', key: 'pms5003', label: 'PMS5003 (PM)' },
+        { id: 'bme', key: 'bme680', label: 'BME680 (Env)' },
+        { id: 'ens', key: 'ens160', label: 'ENS160 (Gas)' },
+      ];
+      
+      sensors.forEach(s => {
+        const el = document.getElementById(`stat-${s.id}`);
+        if (el) {
+          const isActive = data[s.key];
+          const dot = el.querySelector('.live-dot');
+          if (dot) {
+            if (isActive) {
+              dot.style.background = 'var(--good)';
+              dot.style.opacity = '1';
+              dot.style.animation = 'blink 1.5s ease-in-out infinite';
+              el.style.color = 'var(--ink)';
+              el.style.opacity = '1';
+            } else {
+              dot.style.background = 'var(--poor)';
+              dot.style.opacity = '0.5';
+              dot.style.animation = 'none';
+              el.style.color = 'var(--ink3)';
+              el.style.opacity = '0.5';
+            }
+          }
+        }
+      });
+    })
+    .catch(err => {
+      console.warn('updateSensorStatus failed:', err.message);
+    });
+}
+
 window.addEventListener('load', () => {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('content').style.display = 'block';
+  setTimeout(() => { if (window._map) window._map.invalidateSize(); }, 200);
   refreshData();
-  loadDbStats();
+  updateSensorStatus();
+  setTimeout(loadDbStats, 5000); // Stagger: run after refreshData likely completes
 });
-setInterval(refreshData, 5000);
-setInterval(loadDbStats, 30000);
+setInterval(refreshData, 10000); // Update every 10s
+setInterval(updateSensorStatus, 10000); // Check sensor status every 10s
+setInterval(loadDbStats, 60000); // Offset from refreshData to avoid collision
 
 // ── DB STATS ──
 function loadDbStats() {
-  fetch('/api/db/all')
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  
+  fetch('/api/db/all', { signal: controller.signal })
     .then(r => r.json())
     .then(data => {
+      clearTimeout(timeoutId);
       if (!data.records) return;
       document.getElementById('db-record-count').textContent = data.records.length;
       const last = data.records[data.records.length - 1];
       if (last) document.getElementById('db-last-ts').textContent = last.timestamp ?? '—';
     })
-    .catch(() => {});
+    .catch(err => {
+      clearTimeout(timeoutId);
+      console.warn('loadDbStats failed:', err.message);
+    });
 }
 
 // ── DB MODAL ──
@@ -1373,13 +1486,15 @@ window.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); 
 <script>
 const SENSOR_NAME = 'AirIQ Sensor Node';
 
-// Default fallback location (will be overridden by geolocation)
-let SENSOR_LAT = 0, SENSOR_LNG = 0;
+// Fixed sensor location
+const FIXED_SENSOR_LAT = 32.8676;
+const FIXED_SENSOR_LNG = -96.9824;
+let SENSOR_LAT = FIXED_SENSOR_LAT, SENSOR_LNG = FIXED_SENSOR_LNG;
 
-const map = L.map('sensorMap', { center: [20, 0], zoom: 2 });
+window._map = L.map('sensorMap', { center: [FIXED_SENSOR_LAT, FIXED_SENSOR_LNG], zoom: 15 });
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap contributors', maxZoom: 19
-}).addTo(map);
+}).addTo(window._map);
 
 const markerIcon = L.divIcon({
   className: '',
@@ -1401,32 +1516,19 @@ function initMapAt(lat, lng) {
   SENSOR_LAT = lat; SENSOR_LNG = lng;
   document.getElementById('meta-lat').textContent = lat.toFixed(4) + '°';
   document.getElementById('meta-lng').textContent = lng.toFixed(4) + '°';
-  map.invalidateSize();
-  map.setView([lat, lng], 15);
+  if (window._map) window._map.invalidateSize();
+  if (window._map) window._map.setView([lat, lng], 15);
   if (marker) marker.remove();
-  marker = L.marker([lat, lng], { icon: markerIcon }).addTo(map);
+  marker = L.marker([lat, lng], { icon: markerIcon }).addTo(window._map);
   window._mapMarker = marker;
   if (window._lastSensorData) updateMapPopup(window._lastSensorData);
 }
 
-// Try browser geolocation first, then IP-based fallback
-if (navigator.geolocation) {
-  navigator.geolocation.getCurrentPosition(
-    pos => initMapAt(pos.coords.latitude, pos.coords.longitude),
-    () => {
-      fetch('https://ipapi.co/json/')
-        .then(r => r.json())
-        .then(d => initMapAt(d.latitude, d.longitude))
-        .catch(() => initMapAt(28.6139, 77.2090)); // final fallback
-    },
-    { timeout: 8000 }
-  );
-} else {
-  fetch('https://ipapi.co/json/')
-    .then(r => r.json())
-    .then(d => initMapAt(d.latitude, d.longitude))
-    .catch(() => initMapAt(28.6139, 77.2090));
-}
+// Initialize map with fixed sensor location after DOM is ready
+setTimeout(() => {
+  if (window._map) window._map.invalidateSize();
+  initMapAt(FIXED_SENSOR_LAT, FIXED_SENSOR_LNG);
+}, 200);
 
 function updateMapPopup(d) {
   const f1 = v => v != null ? Number(v).toFixed(1) : '--';
@@ -1435,7 +1537,7 @@ function updateMapPopup(d) {
     <div style="font-family:Figtree,sans-serif;min-width:200px;padding:2px">
       <div style="font-weight:800;font-size:0.9rem;margin-bottom:10px;color:#1a1e2e">📡 ${SENSOR_NAME}</div>
       <table style="width:100%;border-collapse:collapse;font-size:0.78rem">
-        <tr><td style="color:#6b7494;padding:3px 0">🌡️ Temperature</td><td style="font-weight:700;color:#0ea5e9">${f1(d.temperature)}°C</td></tr>
+        <tr><td style="color:#6b7494;padding:3px 0">🌡️ Temperature</td><td style="font-weight:700;color:#0ea5e9">${f1(d.temperature * 9/5 + 32)}°F</td></tr>
         <tr><td style="color:#6b7494;padding:3px 0">💧 Humidity</td><td style="font-weight:700;color:#16a34a">${f1(d.humidity)}%</td></tr>
         <tr><td style="color:#6b7494;padding:3px 0">💨 PM2.5</td><td style="font-weight:700;color:#f97316">${f1(d.pm25)} µg/m³</td></tr>
         <tr><td style="color:#6b7494;padding:3px 0">🧪 eCO₂</td><td style="font-weight:700;color:#16a34a">${f0(d.eco2)} ppm</td></tr>

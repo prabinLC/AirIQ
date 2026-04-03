@@ -7,7 +7,7 @@ Tests serial connection and displays raw data
 import serial
 import time
 
-port = '/dev/ttyS0'
+port = '/dev/ttyAMA0'
 baudrate = 9600
 
 print(f"Opening serial port {port}...")

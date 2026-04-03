@@ -64,7 +64,7 @@ def read_sensor_loop():
     global sensor_data, pms5003, bme680, ens160
     
     # Initialize PMS5003
-    pms5003 = PMS5003(port='/dev/ttyS0', baudrate=9600)
+    pms5003 = PMS5003(port='/dev/ttyAMA0', baudrate=9600)
     pms_connected = pms5003.connect()
     
     # Initialize BME680
@@ -247,8 +247,8 @@ if __name__ == '__main__':
     sensor_thread = threading.Thread(target=read_sensor_loop, daemon=True)
     sensor_thread.start()
     
-    print("Starting web server on http://0.0.0.0:5000")
-    print("Open your browser and navigate to http://<raspberry-pi-ip>:5000")
+    print("Starting web server on http://0.0.0.0:7002")
+    print("Open your browser and navigate to http://<raspberry-pi-ip>:7002")
     
     # Run Flask app
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=7002, debug=False)

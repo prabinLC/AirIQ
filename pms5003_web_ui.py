@@ -45,7 +45,7 @@ def read_sensor_loop():
     """Background thread to continuously read sensor data"""
     global sensor_data, sensor
     
-    sensor = PMS5003(port='/dev/ttyS0', baudrate=9600)
+    sensor = PMS5003(port='/dev/ttyAMA0', baudrate=9600)
     
     if not sensor.connect():
         with sensor_lock:

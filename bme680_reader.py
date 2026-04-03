@@ -5,9 +5,6 @@ Reads temperature, humidity, pressure, gas resistance, and altitude
 Connected to I2C GPIO 2 (SDA) and GPIO 3 (SCL)
 """
 
-import board
-import busio
-import adafruit_bme680
 import time
 
 class BME680Reader:
@@ -29,29 +26,50 @@ class BME680Reader:
     def connect(self, shared_i2c=None):
         """Initialize I2C connection and sensor"""
         try:
-            # Use shared I2C bus if provided, otherwise create one
-            if shared_i2c is not None:
-                self.i2c = shared_i2c
-                self._owns_i2c = False
-            else:
-                self.i2c = busio.I2C(board.SCL, board.SDA)
-                self._owns_i2c = True
-            
-            # Initialize BME680 sensor
-            self.sensor = adafruit_bme680.Adafruit_BME680_I2C(
-                self.i2c,
-                address=self.i2c_address
-            )
-            
-            # Set sea level pressure (adjust based on location)
-            self.sensor.sea_level_pressure = 1013.25
-            
-            print(f"Connected to BME680 at address 0x{self.i2c_address:02x}")
-            time.sleep(1)  # Allow sensor to stabilize
-            return True
-        except Exception as e:
-            print(f"Error connecting to BME680: {e}")
+            import board
+            import busio
+            import adafruit_bme680
+        except ImportError as e:
+            print(f"Could not import I2C libraries: {e}")
             return False
+        
+        addresses_to_try = [self.i2c_address]
+        # Add alternate address if primary doesn't work
+        alt_addr = 0x76 if self.i2c_address == 0x77 else 0x77
+        if alt_addr not in addresses_to_try:
+            addresses_to_try.append(alt_addr)
+        
+        for addr in addresses_to_try:
+            try:
+                # Use shared I2C bus if provided, otherwise create one
+                if shared_i2c is not None:
+                    self.i2c = shared_i2c
+                    self._owns_i2c = False
+                else:
+                    self.i2c = busio.I2C(board.SCL, board.SDA)
+                    self._owns_i2c = True
+                
+                # Initialize BME680 sensor
+                self.sensor = adafruit_bme680.Adafruit_BME680_I2C(
+                    self.i2c,
+                    address=addr
+                )
+                
+                # Set sea level pressure (adjust based on location)
+                self.sensor.sea_level_pressure = 1013.25
+                
+                print(f"Connected to BME680 at address 0x{addr:02x}")
+                self.i2c_address = addr
+                time.sleep(1)  # Allow sensor to stabilize
+                return True
+            except Exception as e:
+                if addr == addresses_to_try[-1]:
+                    # This was the last address to try
+                    print(f"Error connecting to BME680 on addresses {addresses_to_try}: {e}")
+                    return False
+                # Try next address
+                continue
+        return False
     
     def disconnect(self):
         """Close I2C connection"""

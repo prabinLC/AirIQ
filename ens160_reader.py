@@ -5,9 +5,6 @@ Reads AQI, eCO2, and TVOC measurements
 Connected to I2C GPIO 2 (SDA) and GPIO 3 (SCL)
 """
 
-import board
-import busio
-import adafruit_ens160
 import time
 
 class ENS160Reader:
@@ -27,23 +24,44 @@ class ENS160Reader:
     def connect(self, shared_i2c=None):
         """Initialize I2C connection and sensor"""
         try:
-            # Use shared I2C bus if provided, otherwise create one
-            if shared_i2c is not None:
-                self.i2c = shared_i2c
-                self._owns_i2c = False
-            else:
-                self.i2c = busio.I2C(board.SCL, board.SDA)
-                self._owns_i2c = True
-
-            # Initialize ENS160 sensor
-            self.sensor = adafruit_ens160.ENS160(self.i2c, address=self.i2c_address)
-
-            print(f"Connected to ENS160 at address 0x{self.i2c_address:02x}")
-            time.sleep(1)  # Allow sensor to stabilize
-            return True
-        except Exception as e:
-            print(f"Error connecting to ENS160: {e}")
+            import board
+            import busio
+            import adafruit_ens160
+        except ImportError as e:
+            print(f"Could not import I2C libraries: {e}")
             return False
+        
+        addresses_to_try = [self.i2c_address]
+        # Add alternate address if primary doesn't work
+        alt_addr = 0x52 if self.i2c_address == 0x53 else 0x53
+        if alt_addr not in addresses_to_try:
+            addresses_to_try.append(alt_addr)
+        
+        for addr in addresses_to_try:
+            try:
+                # Use shared I2C bus if provided, otherwise create one
+                if shared_i2c is not None:
+                    self.i2c = shared_i2c
+                    self._owns_i2c = False
+                else:
+                    self.i2c = busio.I2C(board.SCL, board.SDA)
+                    self._owns_i2c = True
+
+                # Initialize ENS160 sensor
+                self.sensor = adafruit_ens160.ENS160(self.i2c, address=addr)
+
+                print(f"Connected to ENS160 at address 0x{addr:02x}")
+                self.i2c_address = addr
+                time.sleep(1)  # Allow sensor to stabilize
+                return True
+            except Exception as e:
+                if addr == addresses_to_try[-1]:
+                    # This was the last address to try
+                    print(f"Error connecting to ENS160 on addresses {addresses_to_try}: {e}")
+                    return False
+                # Try next address
+                continue
+        return False
     
     def disconnect(self):
         """Close I2C connection"""
@@ -68,6 +86,14 @@ class ENS160Reader:
         
         Returns:
             dict: Dictionary containing sensor readings or None if read fails
+        
+        AQI Standard:
+        - ENS160 reports AQI on 1-5 scale per UPE (Ultra-Low Power Environmental) standard
+        - 1: Excellent (0-50 ePPM equivalent)
+        - 2: Good (51-100 ePPM)
+        - 3: Moderate (101-150 ePPM)
+        - 4: Poor (151-200 ePPM)
+        - 5: Unhealthy (>200 ePPM)
         """
         if not self.sensor:
             print("Sensor not connected")
@@ -75,7 +101,9 @@ class ENS160Reader:
         
         try:
             # Read all sensor values
-            aqi = self.sensor.AQI
+            aqi_raw = self.sensor.AQI
+            # Clamp AQI to valid 1-5 range (sometimes sensor returns values outside range)
+            aqi = max(1, min(5, int(aqi_raw)))
             tvoc = self.sensor.TVOC
             eco2 = self.sensor.eCO2
             

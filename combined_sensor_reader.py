@@ -14,7 +14,7 @@ import db
 class CombinedSensorReader:
     """Class to manage and read from all sensors"""
     
-    def __init__(self, pms5003_port='/dev/ttyS0', bme680_address=0x77, ens160_address=0x53):
+    def __init__(self, pms5003_port='/dev/ttyAMA0', bme680_address=0x77, ens160_address=0x53):
         """
         Initialize all sensors
         
@@ -67,17 +67,36 @@ class CombinedSensorReader:
         print("All sensors disconnected")
     
     def read_all_sensors(self):
-        """Read data from all connected sensors and combine results"""
+        """Read data from all connected sensors in parallel using threads"""
+        results = {}
+        
+        def read_pms():
+            results['pms'] = self.pms5003.read_data()
+        
+        def read_bme():
+            results['bme'] = self.bme680.read_data()
+        
+        def read_ens():
+            results['ens'] = self.ens160.read_data()
+        
+        # Create and start threads for each sensor
+        threads = [
+            threading.Thread(target=read_pms),
+            threading.Thread(target=read_bme),
+            threading.Thread(target=read_ens)
+        ]
+        
+        for t in threads:
+            t.start()
+        
+        for t in threads:
+            t.join()
+        
         try:
-            # Read each sensor
-            pms_data = self.pms5003.read_data()
-            bme_data = self.bme680.read_data()
-            ens_data = self.ens160.read_data()
-            
             with self.data_lock:
-                self.pms5003_data = pms_data if pms_data else {}
-                self.bme680_data = bme_data if bme_data else {}
-                self.ens160_data = ens_data if ens_data else {}
+                self.pms5003_data = results.get('pms') if results.get('pms') else {}
+                self.bme680_data = results.get('bme') if results.get('bme') else {}
+                self.ens160_data = results.get('ens') if results.get('ens') else {}
                 
                 # Combine all data
                 self.combined_data = {
@@ -89,7 +108,7 @@ class CombinedSensorReader:
             
             return self.combined_data
         except Exception as e:
-            print(f"Error reading sensors: {e}")
+            print(f"Error combining sensor data: {e}")
             return None
     
     def print_data(self, data):
@@ -196,7 +215,7 @@ def main():
     
     # Create combined reader instance
     reader = CombinedSensorReader(
-        pms5003_port='/dev/ttyS0',
+        pms5003_port='/dev/ttyAMA0',
         bme680_address=0x77,
         ens160_address=0x53
     )
