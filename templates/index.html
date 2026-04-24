@@ -77,8 +77,15 @@ body.dark-mode .leaflet-popup-tip {
 html,body{height:100vh;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;cursor:default;user-select:none;-webkit-user-select:none;touch-action:pan-y}
 
 /* ═══ LOGO ═══ */
-#airiq-logo{position:fixed;top:8px;right:8px;width:56px;height:56px;border-radius:50%;background:var(--white);border:2px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,0.1);padding:4px;overflow:hidden;z-index:200;object-fit:cover}
+#airiq-logo{position:fixed;top:10px;right:10px;width:44px;height:44px;border-radius:50%;background:var(--white);border:2px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,0.1);padding:3px;overflow:hidden;z-index:200;object-fit:cover;cursor:pointer;transition:transform 0.2s, box-shadow 0.2s}
+#airiq-logo:hover{transform:scale(1.08);box-shadow:0 4px 12px rgba(0,0,0,0.15)}
 body.dark-mode #airiq-logo{background:var(--white);border-color:var(--line2)}
+
+/* ═══ CREATORS MODAL ═══ */
+#creatorsModal{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);animation:fadeIn 0.3s ease}
+#creatorsModal.active{display:flex;justify-content:center;align-items:center}
+#creatorsImage{max-width:90vw;max-height:90vh;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,0.3);object-fit:contain;cursor:pointer}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
 /* ═══ SLIDER ═══ */
 .slider-wrap{position:relative;width:100vw;height:calc(100vh - 43px);overflow:hidden}
@@ -848,6 +855,21 @@ function updateMapPopup(d){
   const titleColor = isDark ? '#f3f4f6' : '#1a1e2e';
   marker.bindPopup(`<div style="font-family:Figtree,sans-serif;min-width:160px;padding:8px;line-height:1.6;background:${bgColor};color:${textColor};border-radius:6px"><div style="font-weight:700;font-size:0.78rem;margin-bottom:6px;color:${titleColor}">📡 AirIQ Node</div><div style="font-size:0.68rem"><div>🌡️ ${f1(d.temperature*9/5+32)}°F</div><div>💧 ${f1(d.humidity)}%</div><div>💨 ${f1(d.pm25)} µg</div><div>🧪 ${f0(d.eco2)} ppm</div><div>🌫️ ${f0(d.tvoc)} ppb</div><div style="color:${aqInfo.color};font-weight:700;margin-top:4px">📊 AQI ${epa} - ${aqInfo.name}</div></div></div>`);
 }
+
+// ═══ LOGO CLICK HANDLER ═══
+document.getElementById('airiq-logo').addEventListener('click', () => {
+  document.getElementById('creatorsModal').classList.add('active');
+});
+
+document.getElementById('creatorsModal').addEventListener('click', () => {
+  document.getElementById('creatorsModal').classList.remove('active');
+});
 </script>
+
+<!-- ═══ CREATORS MODAL ═══ -->
+<div id="creatorsModal">
+  <img src="/logo/Creators.jpg" id="creatorsImage" alt="AirIQ Creators">
+</div>
+
 </body>
 </html>
