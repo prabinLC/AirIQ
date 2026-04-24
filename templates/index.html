@@ -76,6 +76,10 @@ body.dark-mode .leaflet-popup-tip {
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100vh;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;cursor:default;user-select:none;-webkit-user-select:none;touch-action:pan-y}
 
+/* ═══ LOGO ═══ */
+#airiq-logo{position:fixed;top:8px;right:8px;width:56px;height:56px;border-radius:50%;background:var(--white);border:2px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,0.1);padding:4px;overflow:hidden;z-index:200;object-fit:cover}
+body.dark-mode #airiq-logo{background:var(--white);border-color:var(--line2)}
+
 /* ═══ SLIDER ═══ */
 .slider-wrap{position:relative;width:100vw;height:calc(100vh - 43px);overflow:hidden}
 .slider-track{display:flex;width:600%;height:100%;transition:transform 0.5s cubic-bezier(0.25,0.8,0.25,1);will-change:transform}
@@ -211,6 +215,8 @@ html,body{height:100vh;overflow:hidden;background:var(--bg);color:var(--ink);fon
 </style>
 </head>
 <body>
+
+<img src="/logo/logo.png" id="airiq-logo" alt="AirIQ Logo" title="AirIQ">
 
 <div class="loading-overlay" id="loading"><div class="loading-spinner"></div><div class="loading-text">Initializing sensors...</div></div>
 <div class="error-bar" id="error"></div>
