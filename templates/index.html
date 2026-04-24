@@ -861,7 +861,14 @@ document.getElementById('airiq-logo').addEventListener('click', () => {
   document.getElementById('creatorsModal').classList.add('active');
 });
 
-document.getElementById('creatorsModal').addEventListener('click', () => {
+// Close modal when clicking overlay or image
+document.getElementById('creatorsModal').addEventListener('click', (e) => {
+  document.getElementById('creatorsModal').classList.remove('active');
+});
+
+// Close modal when clicking the image itself
+document.getElementById('creatorsImage').addEventListener('click', (e) => {
+  e.stopPropagation();
   document.getElementById('creatorsModal').classList.remove('active');
 });
 </script>
