@@ -1,0 +1,14 @@
+[Unit]
+Description=AirIQ Sensor Dashboard Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/airiq/Desktop/finalProject/AirIQ
+ExecStart=/usr/bin/python3 /home/airiq/Desktop/finalProject/AirIQ/run_server.py 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

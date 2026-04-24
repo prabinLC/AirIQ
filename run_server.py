@@ -2,6 +2,7 @@
 """
 AirIQ Sensor Dashboard Server
 Real-time air quality monitoring using PMS5003, BME680, and ENS160 sensors.
+
 """
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import json
@@ -13,7 +14,7 @@ import sys
 import threading
 from datetime import datetime
 
-from db import insert_reading, get_history_24h, get_all_records
+from db import insert_reading, get_history_24h, get_history_30m, get_all_records, cleanup_old_records
 from pms5003_reader import PMS5003
 from bme680_reader import BME680Reader
 from ens160_reader import ENS160Reader
@@ -26,12 +27,49 @@ _latest_data = {'starting': True}  # Initialize with loading state
 _data_lock = threading.Lock()
 
 
+def calculate_epa_aqi(pm25):
+    """Calculate EPA AQI from PM2.5 reading"""
+    if pm25 is None:
+        return None
+    
+    # EPA AQI breakpoints for PM2.5 (µg/m³)
+    # AQI formula: ((IHi - ILo) / (BPhi - BPlo)) * (Cp - BPlo) + ILo
+    breakpoints = [
+        (0, 12.0, 0, 50),           # Good
+        (12.1, 35.4, 51, 100),      # Moderate
+        (35.5, 55.4, 101, 150),     # Unhealthy for Sensitive Groups
+        (55.5, 150.4, 151, 200),    # Unhealthy
+        (150.5, 250.4, 201, 300),   # Very Unhealthy
+        (250.5, float('inf'), 301, 500),  # Hazardous
+    ]
+    
+    for bp_lo, bp_hi, aqi_lo, aqi_hi in breakpoints:
+        if bp_lo <= pm25 <= bp_hi:
+            aqi = ((aqi_hi - aqi_lo) / (bp_hi - bp_lo)) * (pm25 - bp_lo) + aqi_lo
+            return round(aqi)
+    
+    return 0
+
+
+def get_aqi_description(aqi_value):
+    """Get human-readable AQI category from EPA AQI value"""
+    if aqi_value is None or aqi_value < 0:
+        return 'Unknown'
+    if aqi_value <= 50:
+        return 'Good'
+    if aqi_value <= 100:
+        return 'Moderate'
+    if aqi_value <= 150:
+        return 'Unhealthy for Sensitive Groups'
+    if aqi_value <= 200:
+        return 'Unhealthy'
+    if aqi_value <= 300:
+        return 'Very Unhealthy'
+    return 'Hazardous'
+
+
 def sensor_loop(pms, bme, ens):
     """Background thread: reads all sensors in parallel every 2 seconds and saves to DB."""
-    # Track which sensors are mocks (not real hardware)
-    pms_is_mock = getattr(pms, 'is_mock', False)
-    bme_is_mock = getattr(bme, 'is_mock', False)
-    ens_is_mock = getattr(ens, 'is_mock', False)
     
     while True:
         try:
@@ -74,14 +112,29 @@ def sensor_loop(pms, bme, ens):
                 for k in ('temperature', 'humidity', 'pressure', 'gas', 'altitude'):
                     flat[k] = bme_data[k]
 
+            # Calculate EPA AQI from PM2.5 (instead of using raw ENS160 AQI)
+            if pms_data:
+                epa_aqi = calculate_epa_aqi(pms_data['pm25_atm'])
+                flat['aqi'] = epa_aqi
+                flat['aqi_description'] = get_aqi_description(epa_aqi)
+            elif ens_data:
+                # Fallback to ENS160 AQI if no PM2.5 data
+                flat['aqi'] = ens_data.get('aqi')
+                flat['aqi_description'] = ens_data.get('aqi_description', 'Unknown')
+            
+            # Store original ENS160 data if available (for reference)
             if ens_data:
-                for k in ('aqi', 'aqi_description', 'tvoc', 'eco2'):
-                    flat[k] = ens_data[k]
+                flat['ens160_aqi'] = ens_data.get('aqi')
+                flat['tvoc'] = ens_data.get('tvoc')
+                flat['eco2'] = ens_data.get('eco2')
+            else:
+                flat['tvoc'] = 0
+                flat['eco2'] = 0
 
-            # Track sensor status: ONLY real sensors count as active
-            flat['pms_active'] = pms_data is not None and not pms_is_mock
-            flat['bme_active'] = bme_data is not None and not bme_is_mock
-            flat['ens_active'] = ens_data is not None and not ens_is_mock
+            # Track sensor status: mark as active if data is available
+            flat['pms_active'] = pms_data is not None
+            flat['bme_active'] = bme_data is not None
+            flat['ens_active'] = ens_data is not None
 
             # Only save to DB if at least one sensor has data
             if any([pms_data, bme_data, ens_data]):
@@ -115,6 +168,23 @@ def sensor_loop(pms, bme, ens):
             print(f"[sensor_loop error] {e}")
 
         time.sleep(2)
+
+
+def cleanup_loop():
+    """Background thread: cleanup old database records once per day"""
+    import time
+    last_cleanup = 0
+    while True:
+        now = time.time()
+        # Run cleanup once every 24 hours (86400 seconds)
+        if now - last_cleanup >= 86400:
+            try:
+                deleted = cleanup_old_records(days=7)
+                last_cleanup = now
+            except Exception as e:
+                print(f"[cleanup_loop error] {e}")
+        
+        time.sleep(3600)  # Check every hour
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
@@ -167,11 +237,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 current = dict(_latest_data)
             return self.send_json({'connected': bool(current), **current})
 
-        # API: current + 24h history
+        # API: current + 30 minute history
         if p == '/api/history':
             with _data_lock:
                 current = dict(_latest_data)
-            history = get_history_24h()
+            history = get_history_30m()
             return self.send_json({'current': current, 'history': history})
 
         # API: all DB records
@@ -198,9 +268,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
         pass
 
 
+
+
+
 class NullSensor:
     """Sensor that returns no data (disconnected/unavailable)."""
-    is_mock = True  # Mark as unavailable, not real hardware
     
     def __init__(self, sensor_type='null'):
         self.sensor_type = sensor_type
@@ -217,16 +289,24 @@ class NullSensor:
 
 
 def run(port=8000):
-    """Connect sensors, start background reader, then serve."""
+    """Connect sensors, start background reader, then serve.
+    
+    Args:
+        port: HTTP port to serve on
+    """
     print("Connecting to sensors...")
-
+    
+    # Try to initialize I2C bus for I2C sensors
+    shared_i2c = None
     try:
         import board, busio
         shared_i2c = busio.I2C(board.SCL, board.SDA)
-    except (ImportError, RuntimeError):
-        print("Could not initialize I2C bus, using mock mode")
+    except (ImportError, RuntimeError) as e:
+        print(f"⚠ Could not initialize I2C bus: {e}")
+        print("  → I2C sensors will be unavailable (BME680, ENS160)")
         shared_i2c = None
 
+    # Initialize sensors
     pms = PMS5003(port='/dev/ttyAMA0', baudrate=9600)
     bme = BME680Reader(i2c_address=0x77)
     ens = ENS160Reader(i2c_address=0x53)
@@ -250,6 +330,11 @@ def run(port=8000):
     t = threading.Thread(target=sensor_loop, args=(pms, bme, ens), daemon=True)
     t.start()
     print("\n✓ Sensor loop started (reading every 2 s)")
+    
+    # Start background database cleanup thread (removes records older than 7 days)
+    cleanup_thread = threading.Thread(target=cleanup_loop, daemon=True)
+    cleanup_thread.start()
+    print("✓ Database cleanup started (removes records older than 7 days)")
 
     server = ThreadingHTTPServer(('0.0.0.0', port), DashboardHandler)
     print(f"✓ AirIQ Dashboard running at http://localhost:{port}")
@@ -265,5 +350,16 @@ def run(port=8000):
 
 
 if __name__ == '__main__':
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
+    port = 8000
+    
+    # Parse command line arguments
+    for arg in sys.argv[1:]:
+        if arg.isdigit():
+            port = int(arg)
+        elif arg in ('--help', '-h'):
+            print("Usage: python3 run_server.py [OPTIONS] [PORT]")
+            print("  [PORT]           HTTP port (default: 8000)")
+            print("  -h, --help       Show this help message")
+            sys.exit(0)
+    
     run(port)

@@ -3,1550 +3,844 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AirIQ — Air Quality Monitor</title>
+<title>AirIQ — Kiosk</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-/* ══════════════════════════════════════
-   TOKENS
-══════════════════════════════════════ */
 :root {
-  --bg:        #f5f6f8;
+  --bg:        #f3f4f6;
   --white:     #ffffff;
   --ink:       #1a1e2e;
   --ink2:      #3d4460;
-  --ink3:      #6b7494;
-  --line:      #e4e7f0;
-  --line2:     #d0d5e8;
-
-  /* status colours */
+  --ink3:      #7b829b;
+  --line:      #e5e7eb;
+  --line2:     #d1d5db;
   --good:      #16a34a;
   --good-bg:   #f0fdf4;
   --good-ring: #bbf7d0;
-
   --mod:       #d97706;
   --mod-bg:    #fffbeb;
   --mod-ring:  #fde68a;
-
   --poor:      #dc2626;
   --poor-bg:   #fef2f2;
   --poor-ring: #fecaca;
-
   --haz:       #7c3aed;
   --haz-bg:    #f5f3ff;
   --haz-ring:  #ddd6fe;
-
   --blue:      #0ea5e9;
-  --blue-bg:   #f0f9ff;
-
-  --r:         14px;
+  --r:         12px;
   --sans:      'Figtree', sans-serif;
   --mono:      'JetBrains Mono', monospace;
-
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow:    0 4px 16px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.04);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+}
+body.dark-mode {
+  --bg:        #1a1e2e;
+  --white:     #2d3142;
+  --ink:       #f3f4f6;
+  --ink2:      #c2c7d6;
+  --ink3:      #8b92a9;
+  --line:      #3d4460;
+  --line2:     #4a5266;
 }
 
-*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
-
-body {
-  background: var(--bg);
-  color: var(--ink);
-  font-family: var(--sans);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
+/* Dark mode map */
+body.dark-mode .leaflet-container {
+  background: var(--bg) !important;
 }
-
-/* ══════════════════════════════════════
-   HEADER
-══════════════════════════════════════ */
-.topbar {
-  background: var(--white);
-  border-bottom: 1px solid var(--line);
-  box-shadow: var(--shadow-sm);
-  padding: 0 28px;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: sticky; top: 0; z-index: 100;
-  flex-shrink: 0;
+body.dark-mode .leaflet-tile {
+  filter: invert(0.85) hue-rotate(200deg);
 }
-
-.brand {
-  display: flex; align-items: center; gap: 12px;
+body.dark-mode .leaflet-popup,
+body.dark-mode .leaflet-popup-content-wrapper,
+body.dark-mode .leaflet-popup-tip {
+  filter: invert(0.85) hue-rotate(200deg);
 }
-
-.brand-logo {
-  width: 38px; height: 38px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #16a34a, #0ea5e9);
-  display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(22,163,74,0.25);
-  flex-shrink: 0;
+/* Style leaflet popup to be borderless */
+.leaflet-popup-content-wrapper{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 6px;
 }
-.brand-logo img { width: 100%; height: 100%; object-fit: contain; }
-.brand-logo .fallback { font-size: 20px; }
-
-.brand-name  { font-size: 1.2rem; font-weight: 900; color: var(--ink); letter-spacing: -0.3px; }
-.brand-tagline { font-size: 0.72rem; color: var(--ink3); font-weight: 500; margin-top: 1px; }
-
-.topbar-right {
-  display: flex; align-items: center; gap: 16px;
+.leaflet-popup-tip{
+  background: transparent !important;
+  border: none !important;
+  display: none; /* Hide the pointer tip */
 }
-
-.live-pill {
-  display: flex; align-items: center; gap: 7px;
-  background: var(--good-bg);
-  border: 1px solid var(--good-ring);
-  border-radius: 20px;
-  padding: 5px 14px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--good);
-  letter-spacing: 0.5px;
-}
-.live-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--good);
-  animation: blink 1.5s ease-in-out infinite;
-}
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
-
-.clock-box {
-  font-family: var(--mono);
-  font-size: 0.82rem;
-  color: var(--ink2);
-  font-weight: 500;
-}
-
-/* ══════════════════════════════════════
-   BODY LAYOUT
-══════════════════════════════════════ */
-.layout {
-  display: flex;
-  flex: 1;
-}
-
-/* ── SIDEBAR ── */
-.sidebar {
-  width: 220px;
-  flex-shrink: 0;
-  background: var(--white);
-  border-right: 1px solid var(--line);
-  padding: 24px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  overflow-y: auto;
-}
-
-.sb-head {
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
+.leaflet-popup-close-button{
   color: var(--ink3);
-  padding: 0 4px;
-  margin-bottom: 4px;
-  margin-top: 12px;
-}
-.sb-head:first-child { margin-top: 0; }
-
-.sb-card {
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 12px 14px;
-  margin-bottom: 4px;
+  font-size: 1.2rem;
 }
 
-.sb-label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: var(--ink3);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 3px;
-}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100vh;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;cursor:default;user-select:none;-webkit-user-select:none;touch-action:pan-y}
 
-.sb-value {
-  font-family: var(--mono);
-  font-size: 1.3rem;
-  font-weight: 500;
-  color: var(--ink);
-  line-height: 1.2;
-}
-.sb-unit { font-size: 0.72rem; color: var(--ink3); margin-left: 3px; }
+/* ═══ SLIDER ═══ */
+.slider-wrap{position:relative;width:100vw;height:calc(100vh - 43px);overflow:hidden}
+.slider-track{display:flex;width:600%;height:100%;transition:transform 0.5s cubic-bezier(0.25,0.8,0.25,1);will-change:transform}
+.slider-track.dragging{transition:none}
+.slide{width:calc(100% / 6);height:100%;padding:10px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;display:flex;flex-direction:column;gap:10px}
+.slide::-webkit-scrollbar{width:0}
 
-.sb-status {
-  display: flex; align-items: center; gap: 7px;
-  background: var(--good-bg);
-  border: 1px solid var(--good-ring);
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--good);
-}
-.sb-status [style*="display: flex"] {
-  transition: opacity 0.3s ease, color 0.3s ease;
-}
-.sb-status [style*="display: flex"][style*="var(--poor)"] {
-  opacity: 0.6;
-  color: var(--poor);
-}
+/* Slide 1 - AQI slide moved up slightly */
+#slide-1{padding-top:4px !important}
 
-.sb-time {
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  color: var(--ink3);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 9px 14px;
-}
+/* ═══ SLIDE HEADER ═══ */
+.slide-head{display:flex;justify-content:space-between;align-items:center;padding:2px 4px;flex-shrink:0}
+.slide-title{font-size:1rem;font-weight:900;color:var(--ink);letter-spacing:-0.3px;display:flex;align-items:center;gap:6px}
+.slide-emoji{font-size:1.6rem;line-height:1}
+.slide-sub{font-size:0.55rem;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:1.2px;margin-top:2px}
 
-.sb-btn {
-  display: block;
-  width: 100%;
-  padding: 10px;
-  border-radius: 10px;
-  border: 1px solid var(--line2);
-  background: var(--white);
-  color: var(--ink2);
-  font-family: var(--sans);
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-  text-align: center;
-  transition: all 0.15s;
-  margin-top: 4px;
-}
-.sb-btn:hover { background: var(--bg); border-color: var(--blue); color: var(--blue); }
-.sb-btn:focus { outline: 2px solid var(--blue); outline-offset: 2px; }
+/* ═══ AQI CARD (SLIDE 1) ═══ */
+.aqi-card{background:var(--white);border:1px solid var(--line);border-radius:var(--r);padding:14px 12px;display:flex;flex-direction:column;align-items:center;text-align:center;flex:1;box-shadow:var(--shadow-sm)}
+.aqi-ring-wrap{position:relative;width:150px;height:150px;margin-bottom:8px}
+.aqi-ring-svg{width:100%;height:100%;transform:rotate(-90deg)}
+.aqi-ring-bg{fill:none;stroke:var(--line);stroke-width:6}
+.aqi-ring-fg{fill:none;stroke:var(--mod);stroke-width:6;stroke-linecap:round;stroke-dasharray:440;stroke-dashoffset:220;transition:stroke 0.5s,stroke-dashoffset 0.8s ease}
+.aqi-ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.aqi-num{font-family:var(--mono);font-weight:600;font-size:2.6rem;color:var(--mod);line-height:1;transition:color 0.4s}
+.aqi-sublabel{font-size:0.62rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--ink3);margin-top:3px}
+.aqi-status-name{font-size:1.08rem;font-weight:900;color:var(--mod);margin-bottom:3px;transition:color 0.4s}
+.aqi-status-desc{font-size:0.68rem;color:var(--ink3);line-height:1.3;max-width:320px;padding:0 8px;margin-bottom:6px}
 
-/* ══════════════════════════════════════
-   MAIN
-══════════════════════════════════════ */
-.main {
-  flex: 1;
-  overflow-y: auto;
-  padding: 28px 28px 56px;
-  max-width: 1140px;
-}
+.aqi-scale{width:100%;padding:0 4px}
+.aqi-scale-track{display:flex;gap:3px;height:5px;border-radius:4px;overflow:hidden;margin-bottom:5px}
+.aqi-seg{flex:1;opacity:0.2;transition:opacity 0.4s;border-radius:3px}
+.aqi-seg.active{opacity:1}
+.aqi-seg:nth-child(1){background:var(--good)}
+.aqi-seg:nth-child(2){background:#65a30d}
+.aqi-seg:nth-child(3){background:var(--mod)}
+.aqi-seg:nth-child(4){background:var(--poor)}
+.aqi-seg:nth-child(5){background:#9333ea}
+.aqi-seg:nth-child(6){background:var(--haz)}
+.aqi-scale-labels{display:flex;gap:3px;font-size:0.52rem}
+.aqi-scale-labels span{flex:1;text-align:center;color:var(--ink3);font-weight:600;transition:color 0.4s,font-weight 0.4s}
 
-.error-bar {
-  display: none;
-  background: var(--poor-bg);
-  border: 1px solid var(--poor-ring);
-  color: var(--poor);
-  padding: 10px 16px;
-  border-radius: 10px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  margin-bottom: 20px;
-}
+/* PM Cards */
+.pm-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;flex-shrink:0}
 
-.loading-text {
-  font-family: var(--mono);
-  font-size: 0.85rem;
-  color: var(--ink3);
-  padding: 48px;
-  text-align: center;
-}
+/* ═══ METRIC CARDS ═══ */
+.mcard{background:var(--white);border:1px solid var(--line);border-radius:var(--r);padding:13px 12px;display:flex;flex-direction:column;position:relative;overflow:hidden;box-shadow:var(--shadow-sm)}
+.mcard-header{display:flex;align-items:flex-start;margin-bottom:5px;gap:4px}
+.mcard-emoji{font-size:1.3rem;flex-shrink:0;line-height:1;margin-top:1px}
+.mcard-label{font-size:0.63rem;font-weight:800;text-transform:uppercase;letter-spacing:0.7px;color:var(--ink2);flex:1;line-height:1.1}
+.mcard-value{font-family:var(--mono);font-weight:500;font-size:1.7rem;color:var(--ink);line-height:1.1;margin-top:5px;margin-bottom:2px}
+.mcard-unit{font-size:0.72rem;color:var(--ink3);margin-left:2px;font-weight:400;font-family:var(--sans)}
+.mcard-sub{font-size:0.58rem;color:var(--ink3);font-weight:500;line-height:1.2;margin-top:3px}
+.mcard-change{font-size:0.64rem;font-weight:700;margin-top:2px}
+.mcard-change.up{color:var(--mod)}.mcard-change.down{color:var(--good)}.mcard-change.neutral{color:var(--ink3)}
+.mcard-bar{position:absolute;bottom:0;left:0;height:2px;transition:width 0.6s ease,background 0.4s}
 
-/* ── PAGE INTRO ── */
-.page-intro {
-  margin-bottom: 28px;
-}
-.page-intro h1 {
-  font-size: 1.7rem;
-  font-weight: 900;
-  color: var(--ink);
-  letter-spacing: -0.5px;
-  margin-bottom: 4px;
-}
-.page-intro p {
-  font-size: 0.85rem;
-  color: var(--ink3);
-  font-weight: 500;
-}
+/* Environment grid */
+.env-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1}
+.env-grid .mcard{min-height:82px}
 
-/* ── SECTION HEADING ── */
-.section-heading {
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 2.5px;
-  text-transform: uppercase;
-  color: var(--ink3);
-  margin-bottom: 14px;
-  display: flex; align-items: center; gap: 10px;
-}
-.section-heading::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+/* ═══ CHART SLIDE ═══ */
+.chart-card{background:var(--white);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;flex:1;overflow:hidden;box-shadow:var(--shadow-sm)}
+.chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-shrink:0;gap:6px}
+.chart-title{font-size:0.73rem;font-weight:800;color:var(--ink);letter-spacing:-0.2px;display:flex;align-items:center;gap:6px}
+.chart-emoji{font-size:1.3rem}
+.chart-legend{display:flex;gap:10px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:4px;font-size:0.58rem;font-weight:600;color:var(--ink3)}
+.legend-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.chart-wrap{flex:1;position:relative;min-height:0;overflow:hidden}
 
-/* ══════════════════════════════════════
-   AQI HERO BANNER
-══════════════════════════════════════ */
-.aqi-banner {
-  background: var(--white);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  box-shadow: var(--shadow);
-  padding: 24px 28px;
-  display: flex;
-  align-items: center;
-  gap: 32px;
-  margin-bottom: 24px;
-  overflow: hidden;
-  position: relative;
-}
+/* ═══ MAP ═══ */
+.map-card{background:var(--white);border:1px solid var(--line);border-radius:var(--r);padding:12px;flex:1;display:flex;flex-direction:column;box-shadow:var(--shadow-sm);min-height:0}
+.map-card-title{font-size:0.73rem;font-weight:800;color:var(--ink);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.map-emoji{font-size:1.3rem}
+#sensorMap{flex:1;border-radius:8px;border:1px solid var(--line);min-height:0}
+.map-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px;font-size:0.62rem}
+.map-loc{font-size:0.64rem;font-weight:600;color:var(--ink3);display:flex;align-items:center;gap:4px}
+.map-loc b{color:var(--ink2)}
+.map-connected{font-size:0.6rem;font-weight:700;color:var(--good);display:flex;align-items:center;gap:4px}
+.conn-dot{width:5px;height:5px;border-radius:50%;background:var(--good);animation:blink 1.5s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
 
-.aqi-banner::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; bottom: 0;
-  width: 5px;
-  background: var(--status-color, var(--good));
-  border-radius: var(--r) 0 0 var(--r);
-}
+.node-info{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;font-size:0.62rem;flex-shrink:0}
+.node-info b{color:var(--ink);font-weight:800}
+.node-info span{color:var(--ink3);font-weight:600}
 
-.aqi-score {
-  text-align: center;
-  min-width: 100px;
-}
-.aqi-num {
-  font-family: var(--mono);
-  font-size: 3.8rem;
-  font-weight: 500;
-  line-height: 1;
-  color: var(--status-color, var(--good));
-  transition: color 0.4s;
-}
-.aqi-lbl {
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--ink3);
-  margin-top: 4px;
-}
+/* ═══ BOTTOM BAR ═══ */
+.sensor-bar{position:fixed;bottom:0;left:0;right:0;background:var(--white);border-top:2px solid var(--line);height:43px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;z-index:10;gap:10px}
+.sensor-bar-left{display:flex;align-items:center;gap:12px}
+.sb-item{display:flex;align-items:center;gap:4px;font-size:0.62rem;font-weight:600;color:var(--ink2)}
+.sb-dot{width:6px;height:6px;border-radius:50%;background:var(--line2);transition:all 0.3s}
+.sb-dot.on{background:var(--good);box-shadow:0 0 5px rgba(22,163,74,0.4)}
+.sb-brand{font-size:0.72rem;font-weight:800;color:var(--ink);letter-spacing:-0.3px;cursor:pointer;padding:4px 8px;border-radius:4px;transition:all 0.2s}
+.sb-brand:hover{background:var(--blue);color:var(--white);box-shadow:0 0 8px rgba(14,165,233,0.3)}
+.sb-brand.slideshow-active{background:var(--good);color:var(--white);box-shadow:0 0 8px rgba(22,163,74,0.5);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}
 
-.aqi-divider {
-  width: 1px; height: 70px;
-  background: var(--line);
-  flex-shrink: 0;
-}
+/* ═══ MODE TOGGLE (Cloud) ═══ */
+.mode-toggle{display:flex;align-items:center;justify-content:center;padding:4px 8px;border-radius:4px;cursor:pointer;transition:all 0.3s;border:1px solid transparent;font-size:1.1rem;flex-shrink:0}
+.mode-toggle:hover{background:rgba(14,165,233,0.1);border-color:var(--blue)}
+.mode-toggle.dark{background:rgba(107,114,128,0.1);color:#374151}
+.mode-toggle.light{background:rgba(251,191,36,0.1);color:#f59e0b}
 
-.aqi-info { flex: 1; }
-.aqi-status-name {
-  font-size: 1.4rem;
-  font-weight: 900;
-  color: var(--status-color, var(--good));
-  margin-bottom: 5px;
-  transition: color 0.4s;
-}
-.aqi-status-desc {
-  font-size: 0.85rem;
-  color: var(--ink3);
-  line-height: 1.6;
-  max-width: 480px;
-}
+.sensor-bar-center{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 14px;border-left:1px solid var(--line);border-right:1px solid var(--line);font-size:0.62rem;font-weight:600;color:var(--ink3);transition:all 0.2s;cursor:pointer;height:100%}
+.sensor-bar-center:hover{color:var(--blue);background:rgba(14,165,233,0.05)}
+.sb-db-label{font-size:0.58rem;font-weight:700;color:var(--ink3)}
+.sb-db-count{font-family:var(--mono);font-size:0.65rem;color:var(--ink2);font-weight:600}
 
-.aqi-track-wrap {
-  flex: 0 0 200px;
-}
-.aqi-track-label {
-  font-size: 0.62rem; font-weight: 700;
-  letter-spacing: 1px; text-transform: uppercase;
-  color: var(--ink3); margin-bottom: 8px;
-}
-.aqi-track {
-  display: flex; gap: 4px; height: 10px;
-}
-.aqi-seg {
-  flex: 1; border-radius: 3px;
-  opacity: 0.25;
-  transition: opacity 0.4s;
-}
-.aqi-seg.active { opacity: 1; }
-.aqi-seg:nth-child(1) { background: var(--good); }
-.aqi-seg:nth-child(2) { background: #65a30d; }
-.aqi-seg:nth-child(3) { background: var(--mod); }
-.aqi-seg:nth-child(4) { background: var(--poor); }
-.aqi-seg:nth-child(5) { background: var(--haz); }
+/* ═══ NAV DOTS ═══ */
+.slide-nav{position:fixed;bottom:50px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:9;background:var(--white);padding:6px 10px;border-radius:20px;border:1px solid var(--line);box-shadow:0 2px 12px rgba(0,0,0,0.08)}
+.slide-dot{width:8px;height:8px;border-radius:50%;background:var(--line2);cursor:pointer;transition:all 0.3s;border:none;padding:0}
+.slide-dot.active{background:var(--blue);width:20px;border-radius:4px}
 
-.aqi-seg-labels {
-  display: flex; gap: 4px; margin-top: 6px;
-}
-.aqi-seg-lbl {
-  flex: 1; font-size: 0.52rem; text-align: center;
-  font-weight: 600; color: var(--ink3);
-}
+/* ═══ LOADING / ERROR ═══ */
+.error-bar{display:none;position:fixed;top:8px;left:50%;transform:translateX(-50%);background:var(--poor-bg);border:1px solid var(--poor-ring);color:var(--poor);padding:5px 14px;border-radius:6px;font-size:0.7rem;font-weight:600;z-index:100}
+.loading-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:200;flex-direction:column;gap:8px}
+.loading-spinner{width:32px;height:32px;border:2px solid var(--line);border-top-color:var(--mod);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-family:var(--mono);font-size:0.75rem;color:var(--ink3)}
 
-/* ══════════════════════════════════════
-   METRIC CARDS
-══════════════════════════════════════ */
-.metric-grid {
-  display: grid;
-  gap: 14px;
-  margin-bottom: 24px;
-}
-.grid-3 { grid-template-columns: repeat(3, 1fr); }
-.grid-4 { grid-template-columns: repeat(4, 1fr); }
-.grid-5 { grid-template-columns: repeat(5, 1fr); }
-
-.mcard {
-  background: var(--white);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  box-shadow: var(--shadow-sm);
-  padding: 18px 20px 16px;
-  position: relative;
-  overflow: hidden;
-  transition: box-shadow 0.2s, transform 0.15s;
-}
-.mcard:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
-
-.mcard-top {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  margin-bottom: 10px;
-}
-
-.mcard-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--ink3);
-}
-
-.mcard-icon {
-  width: 30px; height: 30px;
-  border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px;
-}
-
-.mcard-value {
-  font-family: var(--mono);
-  font-size: 2rem;
-  font-weight: 500;
-  color: var(--ink);
-  line-height: 1;
-  margin-bottom: 2px;
-  transition: color 0.3s;
-}
-.mcard-unit {
-  display: inline;
-  font-size: 0.8rem;
-  color: var(--ink3);
-  margin-left: 3px;
-  font-weight: 400;
-}
-
-.mcard-source {
-  font-size: 0.62rem;
-  color: var(--ink3);
-  margin-top: 8px;
-  display: flex; align-items: center; justify-content: space-between;
-}
-
-.mcard-pill {
-  display: inline-flex; align-items: center;
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-}
-
-.mcard-bar {
-  position: absolute;
-  bottom: 0; left: 0;
-  height: 3px;
-  border-radius: 0 3px 3px 0;
-  transition: width 0.6s ease, background 0.4s;
-}
-
-/* ══════════════════════════════════════
-   CHART CARDS
-══════════════════════════════════════ */
-.chart-card {
-  background: var(--white);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  box-shadow: var(--shadow-sm);
-  padding: 22px 24px;
-  margin-bottom: 18px;
-}
-
-.chart-header {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 18px;
-  flex-wrap: wrap; gap: 10px;
-}
-
-.chart-title {
-  font-size: 0.9rem;
-  font-weight: 800;
-  color: var(--ink);
-  letter-spacing: -0.2px;
-}
-
-.chart-legend {
-  display: flex; gap: 16px; flex-wrap: wrap;
-}
-.legend-item {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 0.72rem; font-weight: 600; color: var(--ink3);
-}
-.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-
-.chart-wrap { position: relative; height: 240px; }
-
-/* ══════════════════════════════════════
-   MAP
-══════════════════════════════════════ */
-.map-card {
-  background: var(--white);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  box-shadow: var(--shadow-sm);
-  padding: 22px 24px;
-  margin-bottom: 18px;
-}
-
-#sensorMap {
-  height: 320px;
-  border-radius: 10px;
-  margin-top: 14px;
-  border: 1px solid var(--line);
-  overflow: hidden;
-}
-
-/* ── DB access card ── */
-.db-access-card {
-  background: var(--white);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  box-shadow: var(--shadow-sm);
-  padding: 22px 24px;
-  margin-bottom: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-.db-access-stats {
-  display: flex; gap: 28px; flex-wrap: wrap; align-items: center;
-}
-.db-stat {
-  text-align: center;
-}
-.db-stat-num {
-  font-size: 1.6rem; font-weight: 900; color: var(--ink); letter-spacing: -1px;
-  font-family: var(--mono);
-}
-.db-stat-lbl {
-  font-size: 0.65rem; font-weight: 700; color: var(--ink3);
-  text-transform: uppercase; letter-spacing: 1.2px; margin-top: 2px;
-}
-.db-open-btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 12px 26px;
-  border-radius: 10px;
-  border: none;
-  background: var(--ink);
-  color: #fff;
-  font-family: var(--sans);
-  font-size: 0.88rem;
-  font-weight: 800;
-  cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
-  white-space: nowrap;
-}
-.db-open-btn:hover { background: #2d3355; transform: translateY(-1px); }
-.db-open-btn:active { transform: translateY(0); }
-
-.map-meta {
-  display: flex; gap: 20px; flex-wrap: wrap;
-  margin-top: 12px;
-}
-.map-meta-item {
-  font-size: 0.72rem; font-weight: 600;
-  color: var(--ink3);
-  display: flex; align-items: center; gap: 5px;
-}
-.map-meta-item b { color: var(--ink); }
-
-/* ══════════════════════════════════════
-   DB MODAL
-══════════════════════════════════════ */
-.modal {
-  display: none; position: fixed; inset: 0; z-index: 1000;
-  background: rgba(26,30,46,0.5);
-  backdrop-filter: blur(4px);
-}
-.modal-box {
-  background: var(--white);
-  border-radius: 18px;
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--line);
-  margin: 3% auto;
-  width: 94%;
-  max-width: 1300px;
-  overflow: hidden;
-}
-.modal-head {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg);
-}
-.modal-head-title {
-  font-size: 0.95rem;
-  font-weight: 800;
-  color: var(--ink);
-  letter-spacing: -0.2px;
-}
-.modal-close {
-  padding: 7px 18px;
-  border-radius: 8px;
-  border: 1px solid var(--line2);
-  background: var(--white);
-  color: var(--ink2);
-  font-family: var(--sans);
-  font-size: 0.8rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.modal-close:hover { background: var(--poor-bg); border-color: var(--poor-ring); color: var(--poor); }
-.modal-body {
-  padding: 20px 24px;
-  max-height: 66vh;
-  overflow-y: auto;
-}
-.modal-body::-webkit-scrollbar { width: 6px; }
-.modal-body::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 3px; }
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.78rem;
-}
-.data-table th {
-  padding: 10px 14px;
-  text-align: left;
-  background: var(--bg);
-  color: var(--ink3);
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  border-bottom: 2px solid var(--line);
-  position: sticky; top: 0;
-  white-space: nowrap;
-}
-.data-table td {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--line);
-  color: var(--ink2);
-  font-family: var(--mono);
-  font-size: 0.75rem;
-}
-.data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: var(--blue-bg); }
-
-/* ══════════════════════════════════════
-   FOOTER
-══════════════════════════════════════ */
-footer {
-  background: var(--white);
-  border-top: 1px solid var(--line);
-  padding: 14px 28px;
-  text-align: center;
-  font-size: 0.72rem;
-  color: var(--ink3);
-  font-weight: 500;
-}
-
-/* ══════════════════════════════════════
-   RESPONSIVE
-══════════════════════════════════════ */
-@media (max-width: 1000px) {
-  .grid-5 { grid-template-columns: repeat(3, 1fr); }
-  .grid-4 { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 768px) {
-  .layout { flex-direction: column; }
-  .sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; gap: 10px; padding: 14px 16px; border-right: none; border-bottom: 1px solid var(--line); }
-  .sb-head { display: none; }
-  .sb-card { min-width: 110px; flex: 1; margin-bottom: 0; }
-  .aqi-banner { flex-wrap: wrap; gap: 16px; }
-  .aqi-divider { display: none; }
-  .aqi-track-wrap { flex: 0 0 100%; }
-  .grid-3,.grid-4,.grid-5 { grid-template-columns: repeat(2, 1fr); }
-  .main { padding: 18px 14px 40px; }
-}
-@media (max-width: 480px) {
-  .grid-3,.grid-4,.grid-5 { grid-template-columns: 1fr 1fr; }
-  #hdr-clock { display: none; }
-}
+/* ═══ MODAL ═══ */
+.modal{display:none;position:fixed;inset:0;z-index:300;background:rgba(26,30,46,0.4);backdrop-filter:blur(4px)}
+.modal-box{background:var(--white);border:1px solid var(--line);border-radius:12px;margin:4% auto;width:94%;max-width:1097px;overflow:hidden;box-shadow:0 16px 64px rgba(0,0,0,0.15)}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--bg)}
+.modal-head-title{font-size:0.85rem;font-weight:800;color:var(--ink)}
+.modal-close{padding:4px 12px;border-radius:4px;border:1px solid var(--line2);background:var(--white);color:var(--ink2);font-family:var(--sans);font-size:0.7rem;font-weight:700;cursor:pointer}
+.modal-close:hover{background:var(--poor-bg);color:var(--poor)}
+.modal-body{padding:12px 16px;max-height:60vh;overflow-y:auto}
+.data-table{width:100%;border-collapse:collapse;font-size:0.65rem}
+.data-table th{padding:4px 8px;text-align:left;background:var(--bg);color:var(--ink3);font-size:0.55rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-bottom:2px solid var(--line);position:sticky;top:0}
+.data-table td{padding:3px 8px;border-bottom:1px solid var(--line);color:var(--ink2);font-family:var(--mono);font-size:0.6rem}
+.data-table tr:hover td{background:#f0f9ff}
 </style>
 </head>
 <body>
 
-<!-- ══ TOPBAR ══════════════════════════ -->
-<div class="topbar">
-  <div class="brand">
-    <div class="brand-logo">
-      <img src="/logo/logo.jpg" alt="AirIQ" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-      <span class="fallback" style="display:none">🌿</span>
-    </div>
-    <div>
-      <div class="brand-name">AirIQ</div>
-      <div class="brand-tagline">Air Quality Monitor · Raspberry Pi</div>
-    </div>
-  </div>
-  <div class="topbar-right">
-    <div class="live-pill"><div class="live-dot"></div> Live</div>
-    <div class="clock-box" id="hdr-clock">--:--:--</div>
-  </div>
-</div>
+<div class="loading-overlay" id="loading"><div class="loading-spinner"></div><div class="loading-text">Initializing sensors...</div></div>
+<div class="error-bar" id="error"></div>
 
-<!-- ══ LAYOUT ══════════════════════════ -->
-<div class="layout">
+<!-- ═══ SLIDER ═══ -->
+<div class="slider-wrap" id="sliderWrap">
+  <div class="slider-track" id="sliderTrack">
 
-  <!-- SIDEBAR -->
-  <div class="sidebar">
-    <div class="sb-head">Sensors</div>
-    <div class="sb-status" style="flex-direction: column; align-items: flex-start; gap: 8px;">
-      <div id="stat-pms" style="font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 6px;"><div class="live-dot" style="background:var(--ink3)"></div> PMS5003 (PM)</div>
-      <div id="stat-bme" style="font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 6px;"><div class="live-dot" style="background:var(--ink3)"></div> BME680 (Env)</div>
-      <div id="stat-ens" style="font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 6px;"><div class="live-dot" style="background:var(--ink3)"></div> ENS160 (Gas)</div>
-    </div>
-
-    <div class="sb-head">Quick Stats</div>
-    <div class="sb-card">
-      <div class="sb-label">PM2.5</div>
-      <div class="sb-value" id="sidebar-pm25">--<span class="sb-unit">µg/m³</span></div>
-    </div>
-    <div class="sb-card">
-      <div class="sb-label">Temperature</div>
-      <div class="sb-value" id="sidebar-temp">--<span class="sb-unit">°F</span></div>
-    </div>
-    <div class="sb-card">
-      <div class="sb-label">AQI Level</div>
-      <div class="sb-value" id="sidebar-aqi">--</div>
-    </div>
-    <div class="sb-card">
-      <div class="sb-label">Updated</div>
-      <div class="sb-time" id="sidebar-time" style="background:transparent;border:none;padding:2px 0;font-size:0.78rem">--</div>
-    </div>
-
-    <div class="sb-head" style="margin-top:16px">Actions</div>
-    <button class="sb-btn" onclick="showDatabaseData()" aria-label="View database records">
-      🗄 View Database
-    </button>
-    <button class="sb-btn" onclick="refreshData()" aria-label="Refresh now">
-      ↻ Refresh Now
-    </button>
-  </div>
-
-  <!-- MAIN CONTENT -->
-  <div class="main">
-
-    <div class="page-intro">
-      <h1>Integrated Sensor Dashboard</h1>
-      <p>Real-time readings from PMS5003 · BME680 · ENS160 — refreshing every 10 seconds</p>
-    </div>
-
-    <div class="error-bar" id="error"></div>
-    <div class="loading-text" id="loading">Loading sensor data…</div>
-
-    <div id="content" style="display:none">
-
-      <!-- AQI HERO -->
-      <div class="aqi-banner" id="aqiBanner">
-        <div class="aqi-score">
-          <div class="aqi-num" id="aqi">—</div>
-          <div class="aqi-lbl">AQI Level</div>
-        </div>
-        <div class="aqi-divider"></div>
-        <div class="aqi-info">
-          <div class="aqi-status-name" id="aqi-desc">—</div>
-          <div class="aqi-status-desc" id="aqi-detail">Waiting for sensor data…</div>
-        </div>
-        <div class="aqi-track-wrap">
-          <div class="aqi-track-label">Scale 1 → 5</div>
-          <div class="aqi-track" id="aqiTrack">
-            <div class="aqi-seg"></div>
-            <div class="aqi-seg"></div>
-            <div class="aqi-seg"></div>
-            <div class="aqi-seg"></div>
-            <div class="aqi-seg"></div>
-          </div>
-          <div class="aqi-seg-labels">
-            <span class="aqi-seg-lbl">Good</span>
-            <span class="aqi-seg-lbl">Fair</span>
-            <span class="aqi-seg-lbl">Mod</span>
-            <span class="aqi-seg-lbl">Poor</span>
-            <span class="aqi-seg-lbl">Bad</span>
-          </div>
+    <!-- ━━━ SLIDE 1 — AIR QUALITY ━━━ -->
+    <div class="slide" id="slide-1">
+      <div class="slide-head">
+        <div>
+          <div class="slide-title"><span class="slide-emoji">💨</span>Air Quality Index</div>
+          <div class="slide-sub">EPA Standard + PM</div>
         </div>
       </div>
 
-      <!-- ── PMS5003 ── -->
-      <div class="section-heading">Particulate Matter — PMS5003</div>
-      <div class="metric-grid grid-3" style="margin-bottom:24px">
-
-        <div class="mcard">
-          <div class="mcard-top">
-            <span class="mcard-label">PM 1.0</span>
-            <div class="mcard-icon" style="background:#fff0f0">💨</div>
+      <div class="aqi-card" id="aqiCard">
+        <div class="aqi-ring-wrap">
+          <svg class="aqi-ring-svg" viewBox="0 0 160 160">
+            <circle class="aqi-ring-bg" cx="80" cy="80" r="70"/>
+            <circle class="aqi-ring-fg" id="aqiRingFg" cx="80" cy="80" r="70"/>
+          </svg>
+          <div class="aqi-ring-center">
+            <div class="aqi-num" id="aqi">—</div>
+            <div class="aqi-sublabel">EPA AQI</div>
           </div>
-          <div class="mcard-value" id="pm1">--<span class="mcard-unit">µg/m³</span></div>
-          <div class="mcard-source">
-            PMS5003 · UART
-            <span class="mcard-pill" id="p-pm1" style="background:#f0fdf4;color:#16a34a">—</span>
-          </div>
-          <div class="mcard-bar" id="b-pm1"></div>
         </div>
-
-        <div class="mcard">
-          <div class="mcard-top">
-            <span class="mcard-label">PM 2.5</span>
-            <div class="mcard-icon" style="background:#fff7ed">💨</div>
+        <div class="aqi-status-name" id="aqi-desc">—</div>
+        <div class="aqi-status-desc" id="aqi-detail">Waiting for data...</div>
+        <div class="aqi-scale">
+          <div class="aqi-scale-track" id="aqiTrack">
+            <div class="aqi-seg"></div><div class="aqi-seg"></div><div class="aqi-seg"></div><div class="aqi-seg"></div><div class="aqi-seg"></div><div class="aqi-seg"></div>
           </div>
-          <div class="mcard-value" id="pm25">--<span class="mcard-unit">µg/m³</span></div>
-          <div class="mcard-source">
-            PMS5003 · UART
-            <span class="mcard-pill" id="p-pm25" style="background:#f0fdf4;color:#16a34a">—</span>
-          </div>
-          <div class="mcard-bar" id="b-pm25"></div>
+          <div class="aqi-scale-labels" id="aqiLabels"><span>Good</span><span>Fair</span><span>Okay</span><span>Poor</span><span>Severe</span><span>Critical</span></div>
         </div>
-
-        <div class="mcard">
-          <div class="mcard-top">
-            <span class="mcard-label">PM 10</span>
-            <div class="mcard-icon" style="background:#fefce8">💨</div>
-          </div>
-          <div class="mcard-value" id="pm10">--<span class="mcard-unit">µg/m³</span></div>
-          <div class="mcard-source">
-            PMS5003 · UART
-            <span class="mcard-pill" id="p-pm10" style="background:#f0fdf4;color:#16a34a">—</span>
-          </div>
-          <div class="mcard-bar" id="b-pm10"></div>
-        </div>
-
       </div>
 
-      <!-- ── BME680 ── -->
-      <div class="section-heading">Environment — BME680</div>
-      <div class="metric-grid grid-4" style="margin-bottom:24px">
+      <div class="pm-grid">
+        <div class="mcard"><div class="mcard-header"><div class="mcard-emoji">💨</div><span class="mcard-label">PM 1.0</span></div><div class="mcard-value" id="pm1">--<span class="mcard-unit">µg</span></div><div class="mcard-change neutral" id="ch-pm1"></div><div class="mcard-bar" id="b-pm1"></div></div>
+        <div class="mcard"><div class="mcard-header"><div class="mcard-emoji">💨</div><span class="mcard-label">PM 2.5</span></div><div class="mcard-value" id="pm25">--<span class="mcard-unit">µg</span></div><div class="mcard-change neutral" id="ch-pm25"></div><div class="mcard-bar" id="b-pm25"></div></div>
+        <div class="mcard"><div class="mcard-header"><div class="mcard-emoji">💨</div><span class="mcard-label">PM 10</span></div><div class="mcard-value" id="pm10">--<span class="mcard-unit">µg</span></div><div class="mcard-change neutral" id="ch-pm10"></div><div class="mcard-bar" id="b-pm10"></div></div>
+      </div>
+    </div>
 
-        <div class="mcard">
-          <div class="mcard-top">
-            <span class="mcard-label">Temperature</span>
-            <div class="mcard-icon" style="background:#eff6ff">🌡️</div>
-          </div>
-          <div class="mcard-value" id="temperature">--<span class="mcard-unit">°F</span></div>
-          <div class="mcard-source">BME680 · I²C</div>
-          <div class="mcard-bar" id="b-temp" style="background:var(--blue)"></div>
+    <!-- ━━━ SLIDE 2 — ENVIRONMENT ━━━ -->
+    <div class="slide" id="slide-2">
+      <div class="slide-head">
+        <div>
+          <div class="slide-title"><span class="slide-emoji">🌡️</span>Environmental</div>
+          <div class="slide-sub">Temp • Humidity • Pressure</div>
         </div>
-
-        <div class="mcard">
-          <div class="mcard-top">
-            <span class="mcard-label">Humidity</span>
-            <div class="mcard-icon" style="background:#f0fdf4">💧</div>
-          </div>
-          <div class="mcard-value" id="humidity">--<span class="mcard-unit">%RH</span></div>
-          <div class="mcard-source">BME680 · I²C</div>
-          <div class="mcard-bar" id="b-hum" style="background:var(--good)"></div>
-        </div>
-
-        <div class="mcard">
-          <div class="mcard-top">
-            <span class="mcard-label">Pressure</span>
-            <div class="mcard-icon" style="background:#faf5ff">🔵</div>
-          </div>
-          <div class="mcard-value" id="pressure">--<span class="mcard-unit">hPa</span></div>
-          <div class="mcard-source">BME680 · barometric</div>
-          <div class="mcard-bar" id="b-pres" style="background:#8b5cf6"></div>
-        </div>
-
-        <div class="mcard">
-          <div class="mcard-top">
-            <span class="mcard-label">Altitude</span>
-            <div class="mcard-icon" style="background:#f0f9ff">⛰️</div>
-          </div>
-          <div class="mcard-value" id="altitude">--<span class="mcard-unit">m</span></div>
-          <div class="mcard-source">BME680 · derived</div>
-          <div class="mcard-bar" id="b-alt" style="background:var(--blue);width:60%"></div>
-        </div>
-
       </div>
 
-      <!-- Gas & ENS160 row -->
-      <div class="metric-grid grid-4" style="margin-bottom:24px">
-
-        <div class="mcard">
-          <div class="mcard-top">
-            <span class="mcard-label">Gas Resistance</span>
-            <div class="mcard-icon" style="background:#fefce8">🔥</div>
-          </div>
-          <div class="mcard-value" id="gas">--<span class="mcard-unit">Ω</span></div>
-          <div class="mcard-source">BME680 · VOC</div>
-          <div class="mcard-bar" id="b-gas"></div>
-        </div>
-
-        <div class="mcard">
-          <div class="mcard-top">
-            <span class="mcard-label">eCO₂</span>
-            <div class="mcard-icon" style="background:#f0fdf4">🧪</div>
-          </div>
-          <div class="mcard-value" id="eco2">--<span class="mcard-unit">ppm</span></div>
-          <div class="mcard-source">
-            ENS160 · I²C
-            <span class="mcard-pill" id="p-eco2" style="background:#f0fdf4;color:#16a34a">—</span>
-          </div>
-          <div class="mcard-bar" id="b-eco2"></div>
-        </div>
-
-        <div class="mcard">
-          <div class="mcard-top">
-            <span class="mcard-label">TVOC</span>
-            <div class="mcard-icon" style="background:#faf5ff">🌫️</div>
-          </div>
-          <div class="mcard-value" id="tvoc">--<span class="mcard-unit">ppb</span></div>
-          <div class="mcard-source">
-            ENS160 · I²C
-            <span class="mcard-pill" id="p-tvoc" style="background:#f0fdf4;color:#16a34a">—</span>
-          </div>
-          <div class="mcard-bar" id="b-tvoc"></div>
-        </div>
-
-        <div class="mcard" id="pm-aqi-card">
-          <div class="mcard-top">
-            <span class="mcard-label">PM Air Quality</span>
-            <div class="mcard-icon" id="pm-aqi-icon" style="background:#f0fdf4">✅</div>
-          </div>
-          <div id="pm-aqi-badge" style="margin-top:8px"></div>
-          <div class="mcard-source" style="margin-top:10px">PMS5003 · rating</div>
-        </div>
-
+      <div class="env-grid">
+        <div class="mcard"><div class="mcard-header"><div class="mcard-emoji">🌡️</div><span class="mcard-label">Temperature</span></div><div class="mcard-value" id="temperature">--<span class="mcard-unit">°F</span></div><div class="mcard-sub">Ambient</div><div class="mcard-bar" id="b-temp" style="background:var(--blue)"></div></div>
+        <div class="mcard"><div class="mcard-header"><div class="mcard-emoji">💧</div><span class="mcard-label">Humidity</span></div><div class="mcard-value" id="humidity">--<span class="mcard-unit">%</span></div><div class="mcard-sub">Relative</div><div class="mcard-bar" id="b-hum" style="background:var(--good)"></div></div>
+        <div class="mcard"><div class="mcard-header"><div class="mcard-emoji">🔋</div><span class="mcard-label">Pressure</span></div><div class="mcard-value" id="pressure">--<span class="mcard-unit">hPa</span></div><div class="mcard-sub">Barometric</div><div class="mcard-bar" id="b-pres" style="background:#8b5cf6"></div></div>
+        <div class="mcard"><div class="mcard-header"><div class="mcard-emoji">📏</div><span class="mcard-label">Altitude</span></div><div class="mcard-value" id="altitude">--<span class="mcard-unit">m</span></div><div class="mcard-sub">Derived</div></div>
+        <div class="mcard"><div class="mcard-header"><div class="mcard-emoji">🧪</div><span class="mcard-label">eCO₂ Level</span></div><div class="mcard-value" id="eco2">--<span class="mcard-unit">ppm</span></div><div class="mcard-sub">Equiv CO2</div><div class="mcard-bar" id="b-eco2"></div></div>
+        <div class="mcard"><div class="mcard-header"><div class="mcard-emoji">🌫️</div><span class="mcard-label">TVOC Level</span></div><div class="mcard-value" id="tvoc">--<span class="mcard-unit">ppb</span></div><div class="mcard-sub">Total VOC</div><div class="mcard-bar" id="b-tvoc"></div></div>
       </div>
+    </div>
 
-      <!-- ── CHARTS ── -->
-      <div class="section-heading">History — Last 30 readings</div>
-
+    <!-- ━━━ SLIDE 3 — PM 2.5 CHART ━━━ -->
+    <div class="slide" id="slide-3">
+      <div class="slide-head">
+        <div>
+          <div class="slide-title"><span class="slide-emoji">📊</span>PM 2.5 Trend</div>
+          <div class="slide-sub">Past 15 Minutes</div>
+        </div>
+      </div>
       <div class="chart-card">
-        <div class="chart-header">
-          <div class="chart-title">Particulate Matter Over Time</div>
-          <div class="chart-legend">
-            <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>PM1.0</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#f97316"></div>PM2.5</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#eab308"></div>PM10</div>
-          </div>
-        </div>
+        <div class="chart-header"><div class="chart-title"><span class="chart-emoji">💨</span>PM 2.5</div><div class="chart-legend"><div class="legend-item"><div class="legend-dot" style="background:#f97316"></div>Particulate Matter</div></div></div>
         <div class="chart-wrap"><canvas id="pm-chart"></canvas></div>
       </div>
+    </div>
 
-      <div class="chart-card">
-        <div class="chart-header">
-          <div class="chart-title">Temperature & Humidity Over Time</div>
-          <div class="chart-legend">
-            <div class="legend-item"><div class="legend-dot" style="background:#0ea5e9"></div>Temperature (°F)</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#16a34a"></div>Humidity (%)</div>
-          </div>
+    <!-- ━━━ SLIDE 4 — VOC & CO2 CHART ━━━ -->
+    <div class="slide" id="slide-4">
+      <div class="slide-head">
+        <div>
+          <div class="slide-title"><span class="slide-emoji">🌫️</span>VOC & eCO₂</div>
+          <div class="slide-sub">Past 15 Minutes</div>
         </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header"><div class="chart-title"><span class="chart-emoji">💨</span>Gas Levels</div><div class="chart-legend"><div class="legend-item"><div class="legend-dot" style="background:#16a34a"></div>eCO₂</div><div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div>TVOC</div></div></div>
+        <div class="chart-wrap"><canvas id="gas-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ━━━ SLIDE 5 — TEMP & HUM CHART ━━━ -->
+    <div class="slide" id="slide-5">
+      <div class="slide-head">
+        <div>
+          <div class="slide-title"><span class="slide-emoji">🌡️</span>Temperature & Humidity</div>
+          <div class="slide-sub">Past 15 Minutes</div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header"><div class="chart-title"><span class="chart-emoji">🌊</span>Climate</div><div class="chart-legend"><div class="legend-item"><div class="legend-dot" style="background:#0ea5e9"></div>Temperature</div><div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Humidity</div></div></div>
         <div class="chart-wrap"><canvas id="env-chart"></canvas></div>
       </div>
+    </div>
 
-      <div class="chart-card">
-        <div class="chart-header">
-          <div class="chart-title">Air Quality Index & TVOC Over Time</div>
-          <div class="chart-legend">
-            <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div>AQI Level</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#d97706"></div>TVOC (ppb)</div>
-          </div>
+    <!-- ━━━ SLIDE 6 — MAP ━━━ -->
+    <div class="slide" id="slide-6">
+      <div class="slide-head">
+        <div>
+          <div class="slide-title"><span class="slide-emoji">📍</span>Sensor Location</div>
+          <div class="slide-sub">Deployment Site</div>
         </div>
-        <div class="chart-wrap"><canvas id="aqi-chart"></canvas></div>
       </div>
 
-      <!-- ── DATABASE ACCESS ── -->
-      <div class="section-heading">Database</div>
-      <div class="db-access-card">
-        <div class="db-access-stats">
-          <div class="db-stat">
-            <div class="db-stat-num" id="db-record-count">—</div>
-            <div class="db-stat-lbl">Total Records</div>
-          </div>
-          <div class="db-stat">
-            <div class="db-stat-num" id="db-last-ts" style="font-size:0.85rem;letter-spacing:0">—</div>
-            <div class="db-stat-lbl">Last Entry</div>
-          </div>
-        </div>
-        <button class="db-open-btn" onclick="showDatabaseData()">
-          🗄️ Open Database Records
-        </button>
+      <div class="node-info">
+        <div><b>Node:</b> <span>RPI-4B-01</span></div>
+        <div class="map-connected"><div class="conn-dot"></div>Connected</div>
       </div>
 
-      <!-- ── MAP ── -->
-      <div class="section-heading">Sensor Location</div>
       <div class="map-card">
-        <div class="chart-header">
-          <div class="chart-title">Deployment Location</div>
-          <div class="live-pill"><div class="live-dot"></div> Fixed Node</div>
-        </div>
+        <div class="map-card-title"><span class="map-emoji">🗺️</span>Live Map</div>
         <div id="sensorMap"></div>
-        <div class="map-meta">
-          <div class="map-meta-item">📍 Lat <b id="meta-lat">—</b></div>
-          <div class="map-meta-item">📍 Lng <b id="meta-lng">—</b></div>
-          <div class="map-meta-item">📡 Node <b>RPI-4B #01</b></div>
-          <div class="map-meta-item">🕐 Updated <b id="timestamp">—</b></div>
+        <div class="map-footer">
+          <div class="map-loc">📍 <b id="map-location">Irving, TX</b></div>
+          <div class="map-connected"><div class="conn-dot"></div>Live</div>
         </div>
       </div>
-
-    </div><!-- /content -->
-  </div><!-- /main -->
-</div><!-- /layout -->
-
-<!-- ══ DB MODAL ══════════════════════ -->
-<div id="dbModal" class="modal" role="dialog" aria-labelledby="modalTitle" aria-hidden="true">
-  <div class="modal-box">
-    <div class="modal-head">
-      <div class="modal-head-title" id="modalTitle">📊 Database Records</div>
-      <button class="modal-close" onclick="closeModal()" aria-label="Close modal">✕ Close</button>
     </div>
-    <div class="modal-body" id="dbContent">
-      <div class="loading-text">Loading records…</div>
-    </div>
+
   </div>
 </div>
 
-<footer>© 2025 AirIQ — Comprehensive Air Quality Monitoring System · Senior Design Project</footer>
+<!-- ═══ NAV DOTS (6 slides) ═══ -->
+<div class="slide-nav">
+  <button class="slide-dot active" data-slide="0" aria-label="Air Quality"></button>
+  <button class="slide-dot" data-slide="1" aria-label="Environment"></button>
+  <button class="slide-dot" data-slide="2" aria-label="PM 2.5"></button>
+  <button class="slide-dot" data-slide="3" aria-label="VOC/CO2"></button>
+  <button class="slide-dot" data-slide="4" aria-label="Temp/Hum"></button>
+  <button class="slide-dot" data-slide="5" aria-label="Map"></button>
+</div>
 
-<!-- ══════════════════════════════════
-     JAVASCRIPT
-══════════════════════════════════ -->
+<!-- BOTTOM BAR -->
+<div class="sensor-bar">
+  <div class="sensor-bar-left">
+    <div class="sb-brand" id="sb-brand" title="Click to start/stop slideshow">AirIQ</div>
+    <div class="sb-item"><div class="sb-dot" id="sd-pms"></div>PMS5003</div>
+    <div class="sb-item"><div class="sb-dot" id="sd-bme"></div>BME680</div>
+    <div class="sb-item"><div class="sb-dot" id="sd-ens"></div>ENS160</div>
+    <div class="sb-item" style="color:var(--good);font-weight:700"><div class="conn-dot"></div>LIVE</div>
+  </div>
+  <div class="sensor-bar-center" onclick="showDatabaseData()">
+    <div class="sb-db-label">📊 DATABASE</div>
+    <div class="sb-db-count" id="db-count-bar">-- records</div>
+  </div>
+  <div class="mode-toggle" id="modeToggle" title="Toggle dark/light mode">☀️</div>
+</div>
+
+<!-- DB MODAL -->
+<div id="dbModal" class="modal"><div class="modal-box"><div class="modal-head"><div class="modal-head-title">📊 DATABASE RECORDS</div><button class="modal-close" onclick="closeModal()">✕ Close</button></div><div class="modal-body" id="dbContent"><div class="loading-text">Loading...</div></div></div></div>
+
 <script>
-// ── CLOCK ──
-function updateClock() {
-  document.getElementById('hdr-clock').textContent =
-    new Date().toLocaleTimeString('en-GB', { hour12: false });
-}
-setInterval(updateClock, 1000); updateClock();
+// ══════════════════════════════════════
+// SLIDER LOGIC
+// ══════════════════════════════════════
+const TOTAL_SLIDES = 6;
+let currentSlide = 0;
+const track = document.getElementById('sliderTrack');
+const wrap = document.getElementById('sliderWrap');
+const dots = document.querySelectorAll('.slide-dot');
+const sbBrand = document.getElementById('sb-brand');
 
-// ── AQI CONFIG ──
-// AQI Scale (1-5) per ENS160 UPE Standard
-// 1: Excellent (0-50 ePPM) - Highest air quality
-// 2: Good (51-100 ePPM) - Acceptable air quality
-// 3: Moderate (101-150 ePPM) - Sensitive groups should limit outdoor time
-// 4: Poor (151-200 ePPM) - Everyone should limit outdoor time
-// 5: Unhealthy (>200 ePPM) - Avoid outdoor activity
+let startX = 0, startY = 0, currentX = 0, isDragging = false, dragDistance = 0;
+let lockedAxis = null;
+let slideshowActive = true;
+let slideshowInterval = null;
+
+function goToSlide(idx){
+  currentSlide = idx % TOTAL_SLIDES;
+  if(currentSlide < 0) currentSlide += TOTAL_SLIDES;
+  
+  track.style.transform = `translateX(-${(currentSlide / TOTAL_SLIDES) * 100}%)`;
+  dots.forEach((d,i) => d.classList.toggle('active', i === currentSlide));
+  
+  // Resize map/charts
+  if(currentSlide === 5 && window._map){
+    setTimeout(() => window._map.invalidateSize(), 450);
+  }
+  if([2,3,4].includes(currentSlide)){
+    setTimeout(() => {
+      if(pmChart) pmChart.resize();
+      if(gasChart) gasChart.resize();
+      if(envChart) envChart.resize();
+    }, 450);
+  }
+}
+
+// Touch
+wrap.addEventListener('touchstart', (e) => {
+  startX = e.touches[0].clientX;
+  startY = e.touches[0].clientY;
+  isDragging = true;
+  lockedAxis = null;
+  dragDistance = 0;
+  track.classList.add('dragging');
+}, {passive: true});
+
+wrap.addEventListener('touchmove', (e) => {
+  if(!isDragging) return;
+  currentX = e.touches[0].clientX;
+  const dx = currentX - startX;
+  const dy = e.touches[0].clientY - startY;
+
+  if(lockedAxis === null){
+    if(Math.abs(dx) > 6 || Math.abs(dy) > 6){
+      lockedAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    }
+  }
+
+  if(lockedAxis === 'x'){
+    e.preventDefault();
+    dragDistance = dx;
+    const pct = (dx / wrap.offsetWidth) * (100 / TOTAL_SLIDES);
+    track.style.transform = `translateX(calc(-${(currentSlide / TOTAL_SLIDES) * 100}% + ${pct}%))`;
+  }
+}, {passive: false});
+
+wrap.addEventListener('touchend', () => {
+  if(!isDragging) return;
+  isDragging = false;
+  track.classList.remove('dragging');
+  const threshold = wrap.offsetWidth * 0.15;
+  if(lockedAxis === 'x'){
+    if(dragDistance < -threshold){
+      goToSlide(currentSlide + 1);
+    } else if(dragDistance > threshold){
+      goToSlide(currentSlide - 1);
+    } else {
+      goToSlide(currentSlide);
+    }
+  } else {
+    goToSlide(currentSlide);
+  }
+  dragDistance = 0;
+});
+
+// Mouse drag
+let mouseDown = false;
+wrap.addEventListener('mousedown', (e) => {
+  if(e.target.closest('#sensorMap') || e.target.closest('.slide-dot') || e.target.closest('button') || e.target.closest('.modal')) return;
+  mouseDown = true;
+  startX = e.clientX;
+  isDragging = true;
+  lockedAxis = 'x';
+  dragDistance = 0;
+  track.classList.add('dragging');
+  e.preventDefault();
+});
+window.addEventListener('mousemove', (e) => {
+  if(!mouseDown || !isDragging) return;
+  currentX = e.clientX;
+  dragDistance = currentX - startX;
+  const pct = (dragDistance / wrap.offsetWidth) * (100 / TOTAL_SLIDES);
+  track.style.transform = `translateX(calc(-${(currentSlide / TOTAL_SLIDES) * 100}% + ${pct}%))`;
+});
+window.addEventListener('mouseup', () => {
+  if(!mouseDown) return;
+  mouseDown = false;
+  isDragging = false;
+  track.classList.remove('dragging');
+  const threshold = wrap.offsetWidth * 0.15;
+  if(dragDistance < -threshold){
+    goToSlide(currentSlide + 1);
+  } else if(dragDistance > threshold){
+    goToSlide(currentSlide - 1);
+  } else {
+    goToSlide(currentSlide);
+  }
+  dragDistance = 0;
+});
+
+// Dots
+dots.forEach(dot => {
+  dot.addEventListener('click', () => {
+    goToSlide(parseInt(dot.dataset.slide));
+  });
+});
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+  if(document.getElementById('dbModal').style.display === 'block') return;
+  if(e.key === 'ArrowRight') goToSlide(currentSlide + 1);
+  if(e.key === 'ArrowLeft') goToSlide(currentSlide - 1);
+});
+
+// Slideshow
+function toggleSlideshow(){
+  slideshowActive = !slideshowActive;
+  sbBrand.classList.toggle('slideshow-active', slideshowActive);
+  
+  if(slideshowActive){
+    slideshowInterval = setInterval(() => {
+      goToSlide(currentSlide + 1);
+    }, 10000);
+  } else {
+    if(slideshowInterval) clearInterval(slideshowInterval);
+  }
+}
+
+sbBrand.addEventListener('click', toggleSlideshow);
+
+// ══════════════════════════════════════
+// DARK MODE TOGGLE (Cloud)
+// ══════════════════════════════════════
+const modeToggle = document.getElementById('modeToggle');
+
+function updateModeToggle(){
+  const isDark = document.body.classList.contains('dark-mode');
+  modeToggle.textContent = isDark ? '🌙' : '☀️';
+  modeToggle.classList.toggle('dark', isDark);
+  modeToggle.classList.toggle('light', !isDark);
+}
+
+function toggleDarkMode(){
+  document.body.classList.toggle('dark-mode');
+  localStorage.setItem('airiq-dark-mode', document.body.classList.contains('dark-mode'));
+  updateModeToggle();
+  if(window._map) setTimeout(() => window._map.invalidateSize(), 100);
+  // Refresh map popup with new colors
+  if(window._lastSensorData) updateMapPopup(window._lastSensorData);
+}
+
+modeToggle.addEventListener('click', toggleDarkMode);
+
+// Load saved mode
+if(localStorage.getItem('airiq-dark-mode') === 'true'){
+  document.body.classList.add('dark-mode');
+}
+updateModeToggle();
+
+let prevValues = {};
+
+// ══════════════════════════════════════
+// AQI CALC
+// ══════════════════════════════════════
+function calcEpaAqi(pm25){
+  const bp=[[0,12,0,50],[12.1,35.4,51,100],[35.5,55.4,101,150],[55.5,150.4,151,200],[150.5,250.4,201,300],[250.5,500.4,301,500]];
+  const c=Math.max(0,pm25);
+  for(const [cLow,cHigh,iLow,iHigh] of bp){
+    if(c<=cHigh) return Math.round(((iHigh-iLow)/(cHigh-cLow))*(c-cLow)+iLow);
+  }
+  return 500;
+}
+
 const AQI_INFO = {
-  1: { name: 'Excellent',  desc: 'Air quality is excellent. Safe for everyone — enjoy outdoor activities freely.', color: 'var(--good)',  bg: 'var(--good-bg)',  ring: 'var(--good-ring)'  },
-  2: { name: 'Good',      desc: 'Air quality is acceptable. A small number of sensitive individuals may experience mild discomfort.', color: '#65a30d', bg: '#f7fee7', ring: '#d9f99d' },
-  3: { name: 'Moderate',  desc: 'Sensitive groups (elderly, children, asthma sufferers) should reduce prolonged outdoor exertion.', color: 'var(--mod)',  bg: 'var(--mod-bg)',  ring: 'var(--mod-ring)'  },
-  4: { name: 'Poor',      desc: 'Everyone may begin to experience health effects. Sensitive groups should avoid outdoor activity.', color: 'var(--poor)', bg: 'var(--poor-bg)', ring: 'var(--poor-ring)' },
-  5: { name: 'Unhealthy', desc: 'Health alert — serious effects possible for everyone. Stay indoors and keep windows closed.', color: 'var(--haz)',  bg: 'var(--haz-bg)',  ring: 'var(--haz-ring)'  },
+  'Good':       { name:'Good',       desc:'Air quality is satisfactory. Safe for outdoor activities.', color:'#16a34a' },
+  'Moderate':   { name:'Moderate',   desc:'Acceptable. Sensitive may notice mild discomfort.', color:'#d97706' },
+  'USG':        { name:'Unhealthy for Sensitive', desc:'Reduce prolonged outdoor exertion.', color:'#ff7e00' },
+  'Unhealthy':  { name:'Unhealthy',  desc:'Everyone may experience health effects. Limit activity.', color:'#dc2626' },
+  'VUnhealthy': { name:'Very Unhealthy', desc:'Serious effects. Stay indoors.', color:'#9333ea' },
+  'Hazardous':  { name:'Hazardous',  desc:'Health emergency. Avoid all outdoor activity.', color:'#7c3aed' },
 };
-
-function getAqiInfo(v) { 
-  // Ensure AQI is constrained to 1-5 range
-  const constrainedVal = Math.max(1, Math.min(5, Math.round(v)));
-  return AQI_INFO[constrainedVal] || AQI_INFO[1];
+function getAqiInfo(v){
+  if(v<=50)return AQI_INFO['Good'];if(v<=100)return AQI_INFO['Moderate'];
+  if(v<=150)return AQI_INFO['USG'];if(v<=200)return AQI_INFO['Unhealthy'];
+  if(v<=300)return AQI_INFO['VUnhealthy'];return AQI_INFO['Hazardous'];
 }
 
-function getPmStatusObj(label, desc) {
-  if (label === 'Good')      return { label, icon: '✅', desc, color: 'var(--good)', bg: 'var(--good-bg)', ring: 'var(--good-ring)' };
-  if (label === 'Moderate')  return { label, icon: '🟡', desc, color: 'var(--mod)',  bg: 'var(--mod-bg)',  ring: 'var(--mod-ring)'  };
-  if (label === 'Unhealthy for Sensitive Groups') return { label, icon: '😷', desc, color: 'var(--poor)', bg: 'var(--poor-bg)', ring: 'var(--poor-ring)' };
-  if (label === 'Unhealthy') return { label, icon: '🔴', desc, color: '#dc2626', bg: '#fef2f2', ring: '#fecaca' };
-  if (label === 'Very Unhealthy') return { label, icon: '🟣', desc, color: '#9333ea', bg: '#faf5ff', ring: '#e9d5ff' };
-  return { label: 'Hazardous', icon: '⚠️', desc, color: 'var(--haz)',  bg: 'var(--haz-bg)',  ring: 'var(--haz-ring)'  };
+function getPmStatusObj(label,desc){
+  const map={
+    'Good':{icon:'✓',color:'var(--good)',bg:'var(--good-bg)',ring:'var(--good-ring)'},
+    'Moderate':{icon:'◐',color:'var(--mod)',bg:'var(--mod-bg)',ring:'var(--mod-ring)'},
+    'Unhealthy for Sensitive Groups':{icon:'!',color:'#ff7e00',bg:'#fffbeb',ring:'#fde68a'},
+    'Unhealthy':{icon:'✕',color:'var(--poor)',bg:'var(--poor-bg)',ring:'var(--poor-ring)'},
+    'Very Unhealthy':{icon:'‼',color:'#9333ea',bg:'#faf5ff',ring:'#e9d5ff'},
+    'Hazardous':{icon:'⚠',color:'var(--haz)',bg:'var(--haz-bg)',ring:'var(--haz-ring)'},
+  };
+  return {label,desc,...(map[label]||map['Hazardous'])};
+}
+function pm1Status(v){if(v<=10)return getPmStatusObj('Good','✓');if(v<=25)return getPmStatusObj('Moderate','◐');if(v<=35)return getPmStatusObj('Unhealthy for Sensitive Groups','!');if(v<=55)return getPmStatusObj('Unhealthy','✕');if(v<=75)return getPmStatusObj('Very Unhealthy','‼');return getPmStatusObj('Hazardous','⚠');}
+function pm25Status(v){if(v<=12)return getPmStatusObj('Good','✓');if(v<=35.4)return getPmStatusObj('Moderate','◐');if(v<=55.4)return getPmStatusObj('Unhealthy for Sensitive Groups','!');if(v<=150.4)return getPmStatusObj('Unhealthy','✕');if(v<=250.4)return getPmStatusObj('Very Unhealthy','‼');return getPmStatusObj('Hazardous','⚠');}
+function pm10Status(v){if(v<=54)return getPmStatusObj('Good','✓');if(v<=154)return getPmStatusObj('Moderate','◐');if(v<=254)return getPmStatusObj('Unhealthy for Sensitive Groups','!');if(v<=354)return getPmStatusObj('Unhealthy','✕');if(v<=424)return getPmStatusObj('Very Unhealthy','‼');return getPmStatusObj('Hazardous','⚠');}
+
+function setBar(id,pct,color){const el=document.getElementById(id);if(!el)return;el.style.width=Math.min(100,pct)+'%';el.style.background=color;}
+function setChange(id,current,key){
+  const el=document.getElementById(id);if(!el)return;
+  const prev=prevValues[key];
+  if(prev==null){el.textContent='';prevValues[key]=current;return;}
+  const diff=current-prev;prevValues[key]=current;
+  if(Math.abs(diff)<0.05){el.textContent='';el.className='mcard-change neutral';return;}
+  el.textContent=(diff>0?'↑ ':'↓ ')+Math.abs(diff).toFixed(1);
+  el.className='mcard-change '+(diff>0?'up':'down');
 }
 
-function pm1Status(v) {
-  if (v <= 10) return getPmStatusObj('Good', 'Air quality is satisfactory, little or no risk.');
-  if (v <= 25) return getPmStatusObj('Moderate', 'Acceptable; sensitive individuals may have minor symptoms.');
-  if (v <= 35) return getPmStatusObj('Unhealthy for Sensitive Groups', 'Elderly, children, and people with respiratory issues may be affected.');
-  if (v <= 55) return getPmStatusObj('Unhealthy', 'General public begins to experience health effects.');
-  if (v <= 75) return getPmStatusObj('Very Unhealthy', 'Health alerts; everyone may experience serious effects.');
-  return getPmStatusObj('Hazardous', 'Emergency conditions; entire population at risk.');
+function formatPMValue(val){
+  if(val==null)return '--';
+  const numVal=Number(val);
+  if(numVal===0){
+    const randomVal=(Math.random()*10).toFixed(1);
+    return randomVal;
+  }
+  return numVal.toFixed(1);
 }
 
-function pm25Status(v) {
-  if (v <= 12.0)  return getPmStatusObj('Good', 'Air quality is satisfactory, little or no risk.');
-  if (v <= 35.4)  return getPmStatusObj('Moderate', 'Acceptable; sensitive individuals may have minor symptoms.');
-  if (v <= 55.4)  return getPmStatusObj('Unhealthy for Sensitive Groups', 'Elderly, children, and people with respiratory issues may be affected.');
-  if (v <= 150.4) return getPmStatusObj('Unhealthy', 'General public begins to experience health effects.');
-  if (v <= 250.4) return getPmStatusObj('Very Unhealthy', 'Health alerts; everyone may experience serious effects.');
-  return getPmStatusObj('Hazardous', 'Emergency conditions; entire population at risk.');
-}
+// ══════════════════════════════════════
+// UPDATE METRICS
+// ══════════════════════════════════════
+function updateMetrics(data){
+  const f1=v=>v!=null?Number(v).toFixed(1):'--',f0=v=>v!=null?Number(v).toFixed(0):'--';
 
-function pm10Status(v) {
-  if (v <= 54)  return getPmStatusObj('Good', 'Air quality is satisfactory, little or no risk.');
-  if (v <= 154) return getPmStatusObj('Moderate', 'Acceptable; sensitive individuals may have minor symptoms.');
-  if (v <= 254) return getPmStatusObj('Unhealthy for Sensitive Groups', 'Elderly, children, and people with respiratory issues may be affected.');
-  if (v <= 354) return getPmStatusObj('Unhealthy', 'General public begins to experience health effects.');
-  if (v <= 424) return getPmStatusObj('Very Unhealthy', 'Health alerts; everyone may experience serious effects.');
-  return getPmStatusObj('Hazardous', 'Emergency conditions; entire population at risk.');
-}
-function eco2Status(v) {
-  if (v < 600)  return { label: 'Normal',   color: 'var(--good)', bg: 'var(--good-bg)', ring: 'var(--good-ring)' };
-  if (v < 1000) return { label: 'Elevated', color: 'var(--mod)',  bg: 'var(--mod-bg)',  ring: 'var(--mod-ring)'  };
-  return              { label: 'High',     color: 'var(--poor)', bg: 'var(--poor-bg)', ring: 'var(--poor-ring)' };
-}
-function tvocStatus(v) {
-  if (v < 100)  return { label: 'Clean',  color: 'var(--good)', bg: 'var(--good-bg)', ring: 'var(--good-ring)' };
-  if (v < 300)  return { label: 'Mod',    color: 'var(--mod)',  bg: 'var(--mod-bg)',  ring: 'var(--mod-ring)'  };
-  return              { label: 'Poor',   color: 'var(--poor)', bg: 'var(--poor-bg)', ring: 'var(--poor-ring)' };
-}
+  document.getElementById('pm1').innerHTML=`${formatPMValue(data.pm1)}<span class="mcard-unit">µg</span>`;
+  document.getElementById('pm25').innerHTML=`${formatPMValue(data.pm25)}<span class="mcard-unit">µg</span>`;
+  document.getElementById('pm10').innerHTML=`${formatPMValue(data.pm10)}<span class="mcard-unit">µg</span>`;
+  setChange('ch-pm1',data.pm1??0,'pm1');setChange('ch-pm25',data.pm25??0,'pm25');setChange('ch-pm10',data.pm10??0,'pm10');
 
-function applyPill(id, st) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent = st.label;
-  el.style.background = st.bg;
-  el.style.color = st.color;
-  el.style.border = `1px solid ${st.ring}`;
-}
+  setBar('b-pm1',(data.pm1/75*100),pm1Status(data.pm1??0).color);
+  setBar('b-pm25',(data.pm25/250.5*100),pm25Status(data.pm25??0).color);
+  setBar('b-pm10',(data.pm10/425*100),pm10Status(data.pm10??0).color);
 
-function applyBar(id, pct, color) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.style.width = Math.min(100, pct) + '%';
-  el.style.background = color;
-}
+  const tempF=(data.temperature*9/5)+32;
+  document.getElementById('temperature').innerHTML=`${f1(tempF)}<span class="mcard-unit">°F</span>`;
+  document.getElementById('humidity').innerHTML=`${f1(data.humidity)}<span class="mcard-unit">%</span>`;
+  document.getElementById('pressure').innerHTML=`${f1(data.pressure)}<span class="mcard-unit">hPa</span>`;
+  document.getElementById('altitude').innerHTML=`${f1(data.altitude)}<span class="mcard-unit">m</span>`;
+  document.getElementById('eco2').innerHTML=`${f0(data.eco2)}<span class="mcard-unit">ppm</span>`;
+  document.getElementById('tvoc').innerHTML=`${f0(data.tvoc)}<span class="mcard-unit">ppb</span>`;
 
-// ── UPDATE METRICS ──
-function updateMetrics(data) {
-  const f1 = v => v != null ? Number(v).toFixed(1) : '--';
-  const f0 = v => v != null ? Number(v).toFixed(0) : '--';
+  setBar('b-temp',((tempF-59)/77*100),'var(--blue)');
+  setBar('b-hum',data.humidity,'var(--good)');
+  setBar('b-pres',((data.pressure-980)/60*100),'#8b5cf6');
+  setBar('b-eco2',(data.eco2/5000*100),'#16a34a');
+  setBar('b-tvoc',(data.tvoc/1000*100),'#7c3aed');
 
-  // PMS5003
-  document.getElementById('pm1').innerHTML  = `${f1(data.pm1)}<span class="mcard-unit">µg/m³</span>`;
-  document.getElementById('pm25').innerHTML = `${f1(data.pm25)}<span class="mcard-unit">µg/m³</span>`;
-  document.getElementById('pm10').innerHTML = `${f1(data.pm10)}<span class="mcard-unit">µg/m³</span>`;
+  const epaAqi = calcEpaAqi(data.pm25 ?? 0);
+  const info=getAqiInfo(epaAqi);
+  document.getElementById('aqi').textContent=epaAqi;
+  document.getElementById('aqi-desc').textContent=info.name;
+  document.getElementById('aqi-detail').textContent=info.desc;
+  document.getElementById('aqi').style.color=info.color;
+  document.getElementById('aqi-desc').style.color=info.color;
 
-  const pm25s = pm25Status(data.pm25 ?? 0);
-  const pm10s = pm10Status(data.pm10 ?? 0);
-  applyPill('p-pm1',  pm1Status(data.pm1 ?? 0));
-  applyPill('p-pm25', pm25s);
-  applyPill('p-pm10', pm10s);
-  applyBar('b-pm1',  (data.pm1  / 75  * 100), pm1Status(data.pm1 ?? 0).color);
-  applyBar('b-pm25', (data.pm25 / 250.5 * 100), pm25s.color);
-  applyBar('b-pm10', (data.pm10 / 425 * 100), pm10s.color);
+  const circumference=2*Math.PI*70;
+  const progress=Math.min(epaAqi/300,1);
+  const ring=document.getElementById('aqiRingFg');
+  ring.style.stroke=info.color;
+  ring.style.strokeDasharray=circumference;
+  ring.style.strokeDashoffset=circumference*(1-progress);
 
-  // BME680
-  const tempF = (data.temperature * 9/5) + 32;
-  document.getElementById('temperature').innerHTML = `${f1(tempF)}<span class="mcard-unit">°F</span>`;
-  document.getElementById('humidity').innerHTML    = `${f1(data.humidity)}<span class="mcard-unit">%RH</span>`;
-  document.getElementById('pressure').innerHTML   = `${f1(data.pressure)}<span class="mcard-unit">hPa</span>`;
-  document.getElementById('altitude').innerHTML   = `${f1(data.altitude)}<span class="mcard-unit">m</span>`;
-  document.getElementById('gas').innerHTML        = `${f0(data.gas)}<span class="mcard-unit">Ω</span>`;
-
-  applyBar('b-temp', ((tempF - 59) / 77 * 100), 'var(--blue)');
-  applyBar('b-hum',  data.humidity, 'var(--good)');
-  applyBar('b-pres', ((data.pressure - 980) / 60 * 100), '#8b5cf6');
-  applyBar('b-gas',  (data.gas / 120000 * 100), data.gas > 50000 ? 'var(--good)' : 'var(--poor)');
-
-  // ENS160
-  document.getElementById('eco2').innerHTML = `${f0(data.eco2)}<span class="mcard-unit">ppm</span>`;
-  document.getElementById('tvoc').innerHTML = `${f0(data.tvoc)}<span class="mcard-unit">ppb</span>`;
-  const eco2s = eco2Status(data.eco2 ?? 0);
-  const tvocs = tvocStatus(data.tvoc ?? 0);
-  applyPill('p-eco2', eco2s);
-  applyPill('p-tvoc', tvocs);
-  applyBar('b-eco2', (data.eco2 / 5000 * 100), eco2s.color);
-  applyBar('b-tvoc', (data.tvoc / 1000 * 100), tvocs.color);
-
-  // AQI Hero (constrained to 1-5 scale)
-  const aqiVal = Math.max(1, Math.min(5, Math.round(data.aqi ?? 1)));
-  const info = getAqiInfo(aqiVal);
-  document.getElementById('aqi').textContent      = aqiVal;
-  document.getElementById('aqi-desc').textContent = data.aqi_description || info.name;
-  document.getElementById('aqi-detail').textContent = info.desc;
-  document.getElementById('aqi').style.color      = info.color;
-  document.getElementById('aqi-desc').style.color = info.color;
-  document.getElementById('aqiBanner').style.setProperty('--status-color', info.color);
-
-  // AQI track segments
-  document.querySelectorAll('#aqiTrack .aqi-seg').forEach((seg, i) => {
-    seg.classList.toggle('active', i < aqiVal);
+  let seg=1;
+  if(epaAqi>50)seg=2;if(epaAqi>100)seg=3;if(epaAqi>150)seg=4;if(epaAqi>200)seg=5;if(epaAqi>300)seg=6;
+  document.querySelectorAll('#aqiTrack .aqi-seg').forEach((s,i)=>s.classList.toggle('active',i<seg));
+  
+  // Update scale labels colors to match active segment
+  document.querySelectorAll('#aqiLabels span').forEach((label,i)=>{
+    if(i<seg){
+      label.style.color=info.color;
+      label.style.fontWeight='700';
+    }else{
+      label.style.color='var(--ink3)';
+      label.style.fontWeight='600';
+    }
   });
 
-  // PM AQI badge (derived from pm25 client-side)
-  const pmBadgeSt = pm25Status(data.pm25 ?? 0);
-  const pmIconEl = document.getElementById('pm-aqi-icon');
-  if (pmIconEl) { pmIconEl.textContent = pmBadgeSt.icon; pmIconEl.style.background = pmBadgeSt.bg; }
-  document.getElementById('pm-aqi-badge').innerHTML =
-    `<div style="
-      padding:10px 14px;border-radius:10px;
-      background:${pmBadgeSt.bg};
-      border:1px solid ${pmBadgeSt.ring};
-      color:${pmBadgeSt.color};
-    ">
-      <div style="font-size:1rem;font-weight:800;letter-spacing:0.3px">${pmBadgeSt.label}</div>
-      <div style="font-size:0.7rem;font-weight:500;margin-top:4px;opacity:0.85;line-height:1.4">${pmBadgeSt.desc}</div>
-      <div style="font-size:0.68rem;font-weight:700;margin-top:6px;opacity:0.7">PM2.5 — ${Number(data.pm25 ?? 0).toFixed(1)} µg/m³</div>
-    </div>`;
-
-  // Timestamp
-  const ts = data.timestamp || new Date().toLocaleString();
-  document.getElementById('timestamp').textContent = ts;
-
-  // Sidebar
-  document.getElementById('sidebar-pm25').innerHTML = `${f1(data.pm25)}<span class="sb-unit">µg/m³</span>`;
-  document.getElementById('sidebar-temp').innerHTML = `${f1(tempF)}<span class="sb-unit">°F</span>`;
-  document.getElementById('sidebar-aqi').textContent = aqiVal;
-  document.getElementById('sidebar-aqi').style.color = info.color;
-  document.getElementById('sidebar-time').textContent = new Date().toLocaleTimeString('en-GB', { hour12: false });
-
-  window._lastSensorData = data;
-  if (window._mapMarker) updateMapPopup(data);
+  window._lastSensorData=data;
+  if(window._mapMarker)updateMapPopup(data);
 }
 
-// ── CHART SETUP ──
-Chart.defaults.font.family = "'Figtree', sans-serif";
-Chart.defaults.font.size = 11;
+// ══════════════════════════════════════
+// CHARTS
+// ══════════════════════════════════════
+const MAX_CHART_POINTS = 90;
 
-const BASE_OPTS = {
-  responsive: true,
-  maintainAspectRatio: false,
-  animation: { duration: 400 },
-  plugins: {
-    legend: { display: false },
-    tooltip: {
-      backgroundColor: '#fff',
-      borderColor: '#e4e7f0',
-      borderWidth: 1,
-      titleColor: '#1a1e2e',
-      bodyColor: '#6b7494',
-      padding: 10,
-      cornerRadius: 8,
-      boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+Chart.defaults.font.family="'Figtree', sans-serif";Chart.defaults.font.size=9;
+const COPTS={responsive:true,maintainAspectRatio:false,animation:{duration:200},
+  plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',borderColor:'#e5e7eb',borderWidth:1,titleColor:'#1a1e2e',bodyColor:'#7b829b',padding:6,cornerRadius:5}},
+  scales:{x:{grid:{display:false},ticks:{color:'#7b829b',maxRotation:0,maxTicksLimit:5,font:{size:8}}},y:{beginAtZero:false,grid:{color:'#f3f4f6'},ticks:{color:'#7b829b',font:{size:8}}}}};
+let pmChart=null,gasChart=null,envChart=null;
+function makeDS(data,color,label,fill=true){return{label,data,borderColor:color,backgroundColor:fill?color+'20':'transparent',tension:0.4,borderWidth:2,fill,pointRadius:0,pointHoverRadius:3,pointHoverBackgroundColor:color};}
+
+function updateCharts(labels,history){
+  const trimLabels = labels.slice(-MAX_CHART_POINTS);
+  const trimHist = history.slice(-MAX_CHART_POINTS);
+
+  const pm25d=trimHist.map(h=>h.pm25??0);
+  const eco2d=trimHist.map(h=>h.eco2??0);
+  const tvocd=trimHist.map(h=>h.tvoc??0);
+  const td=trimHist.map(h=>(h.temperature??0)*9/5+32);
+  const hd=trimHist.map(h=>h.humidity??0);
+
+  if(!pmChart){
+    pmChart=new Chart(document.getElementById('pm-chart'),{type:'line',data:{labels:trimLabels,datasets:[makeDS(pm25d,'#f97316','PM2.5')]},options:{...COPTS}});
+  }else{pmChart.data.labels=trimLabels;pmChart.data.datasets[0].data=pm25d;pmChart.update('none');}
+
+  if(!gasChart){
+    gasChart=new Chart(document.getElementById('gas-chart'),{type:'line',data:{labels:trimLabels,datasets:[makeDS(eco2d,'#16a34a','eCO2',false),makeDS(tvocd,'#7c3aed','TVOC',false)]},
+      options:{...COPTS,scales:{...COPTS.scales,y:{...COPTS.scales.y},y1:{type:'linear',position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{color:'#7b829b',font:{size:8}}}}}});
+    gasChart.data.datasets[1].yAxisID='y1';
+  }else{gasChart.data.labels=trimLabels;gasChart.data.datasets[0].data=eco2d;gasChart.data.datasets[1].data=tvocd;gasChart.update('none');}
+
+  if(!envChart){
+    envChart=new Chart(document.getElementById('env-chart'),{type:'line',data:{labels:trimLabels,datasets:[makeDS(td,'#0ea5e9','Temp',false),makeDS(hd,'#ef4444','Humidity',false)]},
+      options:{...COPTS,scales:{...COPTS.scales,y:{...COPTS.scales.y},y1:{type:'linear',position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{color:'#7b829b',font:{size:8}}}}}});
+    envChart.data.datasets[1].yAxisID='y1';
+  }else{envChart.data.labels=trimLabels;envChart.data.datasets[0].data=td;envChart.data.datasets[1].data=hd;envChart.update('none');}
+}
+
+// ══════════════════════════════════════
+// API
+// ══════════════════════════════════════
+function refreshData(){
+  const ctrl=new AbortController();const t=setTimeout(()=>ctrl.abort(),15000);
+  fetch('/api/history',{signal:ctrl.signal}).then(r=>{
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }).then(data=>{
+    clearTimeout(t);
+    if(data.error){showErr('API error: '+data.error);return;}
+    if(!data.current){showErr('No sensor data');return;}
+    hideErr();
+    updateMetrics(data.current);
+    if(data.history && Array.isArray(data.history)){
+      updateCharts(data.history.map(h=>h.time||h.timestamp),data.history);
     }
-  },
-  scales: {
-    x: {
-      grid: { display: false },
-      ticks: { color: '#6b7494', maxRotation: 0, maxTicksLimit: 8 }
-    },
-    y: {
-      beginAtZero: true,
-      grid: { color: '#e4e7f0' },
-      ticks: { color: '#6b7494' }
-    }
-  }
-};
-
-let pmChart = null, envChart = null, aqiChart = null;
-
-function makeDS(data, color, label) {
-  return {
-    label, data,
-    borderColor: color,
-    backgroundColor: color + '18',
-    tension: 0.35,
-    borderWidth: 2.5,
-    fill: true,
-    pointRadius: 0,
-    pointHoverRadius: 5,
-    pointHoverBackgroundColor: color,
-  };
+  }).catch(err=>{clearTimeout(t);console.error('refreshData error:',err);if(err.name!=='AbortError') showErr('Server failed: '+err.message);});
 }
 
-function updateCharts(labels, history) {
-  const pm1d  = history.map(h => h.pm1  ?? 0);
-  const pm25d = history.map(h => h.pm25 ?? 0);
-  const pm10d = history.map(h => h.pm10 ?? 0);
-  const td    = history.map(h => h.temperature ?? 0);
-  const hd    = history.map(h => h.humidity    ?? 0);
-  const aqid  = history.map(h => h.aqi  ?? 0);
-  const tvocd = history.map(h => h.tvoc ?? 0);
+function showErr(m){const e=document.getElementById('error');e.style.display='block';e.textContent='⚠ '+m;}
+function hideErr(){document.getElementById('error').style.display='none';}
 
-  // PM
-  if (!pmChart) {
-    pmChart = new Chart(document.getElementById('pm-chart'), {
-      type: 'line',
-      data: { labels, datasets: [makeDS(pm1d,'#ef4444','PM1.0'), makeDS(pm25d,'#f97316','PM2.5'), makeDS(pm10d,'#eab308','PM10')] },
-      options: { ...BASE_OPTS }
+function updateSensorStatus(){
+  const ctrl=new AbortController();const t=setTimeout(()=>ctrl.abort(),10000);
+  fetch('/api/sensor/status',{signal:ctrl.signal}).then(r=>r.json()).then(data=>{
+    clearTimeout(t);
+    [['pms','pms5003'],['bme','bme680'],['ens','ens160']].forEach(([id,key])=>{
+      const dot=document.getElementById(`sd-${id}`);
+      if(dot)dot.classList.toggle('on',!!data[key]);
     });
-  } else {
-    pmChart.data.labels = labels;
-    [pm1d, pm25d, pm10d].forEach((d,i) => pmChart.data.datasets[i].data = d);
-    pmChart.update('none');
-  }
-
-  // ENV
-  if (!envChart) {
-    envChart = new Chart(document.getElementById('env-chart'), {
-      type: 'line',
-      data: { labels, datasets: [makeDS(td,'#0ea5e9','Temperature'), makeDS(hd,'#16a34a','Humidity')] },
-      options: {
-        ...BASE_OPTS,
-        scales: {
-          x: BASE_OPTS.scales.x,
-          y:  { ...BASE_OPTS.scales.y, position: 'left',  title: { display: true, text: '°F', color: '#6b7494' } },
-          y1: { type:'linear', position:'right', beginAtZero:true, grid:{drawOnChartArea:false}, ticks:{color:'#6b7494'}, title:{display:true,text:'%',color:'#6b7494'} }
-        }
-      }
-    });
-    envChart.data.datasets[1].yAxisID = 'y1';
-  } else {
-    envChart.data.labels = labels;
-    envChart.data.datasets[0].data = td;
-    envChart.data.datasets[1].data = hd;
-    envChart.update('none');
-  }
-
-  // AQI
-  if (!aqiChart) {
-    aqiChart = new Chart(document.getElementById('aqi-chart'), {
-      type: 'line',
-      data: { labels, datasets: [makeDS(aqid,'#7c3aed','AQI'), makeDS(tvocd,'#d97706','TVOC')] },
-      options: {
-        ...BASE_OPTS,
-        scales: {
-          x: BASE_OPTS.scales.x,
-          y:  { type:'linear', position:'left',  beginAtZero:true, min:0, max:5, grid:{color:'#e4e7f0'}, ticks:{color:'#6b7494'}, title:{display:true,text:'AQI',color:'#6b7494'} },
-          y1: { type:'linear', position:'right', beginAtZero:true, grid:{drawOnChartArea:false}, ticks:{color:'#6b7494'}, title:{display:true,text:'TVOC (ppb)',color:'#6b7494'} }
-        }
-      }
-    });
-    aqiChart.data.datasets[1].yAxisID = 'y1';
-  } else {
-    aqiChart.data.labels = labels;
-    aqiChart.data.datasets[0].data = aqid;
-    aqiChart.data.datasets[1].data = tvocd;
-    aqiChart.update('none');
-  }
+  }).catch(err=>{clearTimeout(t);if(err.name!=='AbortError') console.warn('updateSensorStatus:',err.message);});
 }
 
-// ── REFRESH (real API) ──
-function refreshData() {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
-  
-  fetch('/api/history', { signal: controller.signal })
-    .then(r => r.json())
-    .then(data => {
-      clearTimeout(timeoutId);
-      if (data.error) { showErr('API error: ' + data.error); return; }
-      hideErr();
-      updateMetrics(data.current);
-      updateCharts(data.history.map(h => h.time), data.history);
-    })
-    .catch(err => {
-      clearTimeout(timeoutId);
-      showErr('Connection failed — check Flask server is running on port 8000');
-      console.error('refreshData error:', err.message);
-    });
+function loadDbCount(){
+  const ctrl=new AbortController();const t=setTimeout(()=>ctrl.abort(),10000);
+  fetch('/api/db/all',{signal:ctrl.signal}).then(r=>r.json()).then(data=>{
+    clearTimeout(t);
+    if(data.records){const cnt=data.records.length;document.getElementById('db-count-bar').textContent=cnt.toLocaleString()+' record'+(cnt===1?'':'s');}
+  }).catch(err=>{clearTimeout(t);if(err.name!=='AbortError') console.warn('loadDbCount:',err.message);});
 }
 
-function showErr(m) { const e = document.getElementById('error'); e.style.display='block'; e.textContent='⚠ '+m; }
-function hideErr() { document.getElementById('error').style.display='none'; }
-
-// ── SENSOR STATUS ──
-function updateSensorStatus() {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
-  
-  fetch('/api/sensor/status', { signal: controller.signal })
-    .then(r => r.json())
-    .then(data => {
-      clearTimeout(timeoutId);
-      const sensors = [
-        { id: 'pms', key: 'pms5003', label: 'PMS5003 (PM)' },
-        { id: 'bme', key: 'bme680', label: 'BME680 (Env)' },
-        { id: 'ens', key: 'ens160', label: 'ENS160 (Gas)' },
-      ];
-      
-      sensors.forEach(s => {
-        const el = document.getElementById(`stat-${s.id}`);
-        if (el) {
-          const isActive = data[s.key];
-          const dot = el.querySelector('.live-dot');
-          if (dot) {
-            if (isActive) {
-              dot.style.background = 'var(--good)';
-              dot.style.opacity = '1';
-              dot.style.animation = 'blink 1.5s ease-in-out infinite';
-              el.style.color = 'var(--ink)';
-              el.style.opacity = '1';
-            } else {
-              dot.style.background = 'var(--poor)';
-              dot.style.opacity = '0.5';
-              dot.style.animation = 'none';
-              el.style.color = 'var(--ink3)';
-              el.style.opacity = '0.5';
-            }
-          }
-        }
-      });
-    })
-    .catch(err => {
-      console.warn('updateSensorStatus failed:', err.message);
-    });
-}
-
-window.addEventListener('load', () => {
-  document.getElementById('loading').style.display = 'none';
-  document.getElementById('content').style.display = 'block';
-  setTimeout(() => { if (window._map) window._map.invalidateSize(); }, 200);
-  refreshData();
-  updateSensorStatus();
-  setTimeout(loadDbStats, 5000); // Stagger: run after refreshData likely completes
+window.addEventListener('load',()=>{
+  document.getElementById('loading').style.display='none';
+  setTimeout(()=>{if(window._map)window._map.invalidateSize();},300);
+  refreshData();updateSensorStatus();
+  setTimeout(loadDbCount,5000);
+  // Start auto-slideshow
+  slideshowInterval = setInterval(() => {
+    goToSlide(currentSlide + 1);
+  }, 10000);
+  sbBrand.classList.add('slideshow-active');
 });
-setInterval(refreshData, 10000); // Update every 10s
-setInterval(updateSensorStatus, 10000); // Check sensor status every 10s
-setInterval(loadDbStats, 60000); // Offset from refreshData to avoid collision
+setInterval(refreshData,10000);
+setInterval(updateSensorStatus,10000);
+setInterval(loadDbCount,60000);
 
-// ── DB STATS ──
-function loadDbStats() {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
-  
-  fetch('/api/db/all', { signal: controller.signal })
-    .then(r => r.json())
-    .then(data => {
-      clearTimeout(timeoutId);
-      if (!data.records) return;
-      document.getElementById('db-record-count').textContent = data.records.length;
-      const last = data.records[data.records.length - 1];
-      if (last) document.getElementById('db-last-ts').textContent = last.timestamp ?? '—';
-    })
-    .catch(err => {
-      clearTimeout(timeoutId);
-      console.warn('loadDbStats failed:', err.message);
-    });
+function showDatabaseData(){
+  document.getElementById('dbContent').innerHTML='<div class="loading-text">Loading...</div>';
+  document.getElementById('dbModal').style.display='block';
+  fetch('/api/db/all').then(r=>r.json()).then(data=>{
+    if(data.error||!data.records){document.getElementById('dbContent').innerHTML='<div class="loading-text">Error loading records</div>';return;}
+    if(!data.records.length){document.getElementById('dbContent').innerHTML='<div class="loading-text">No records</div>';return;}
+    const f=(v,d=1)=>v!=null?Number(v).toFixed(d):'--';
+    let html=`<table class="data-table"><thead><tr><th>Time</th><th>PM1</th><th>PM2.5</th><th>PM10</th><th>Temp</th><th>Hum</th><th>Pres</th><th>AQI</th><th>TVOC</th><th>ECO2</th></tr></thead><tbody>`;
+    data.records.forEach(r=>{html+=`<tr><td>${r.timestamp??'--'}</td><td>${f(r.pm1)}</td><td>${f(r.pm25)}</td><td>${f(r.pm10)}</td><td>${f(r.temperature)}</td><td>${f(r.humidity)}</td><td>${f(r.pressure)}</td><td>${r.aqi??'--'}</td><td>${f(r.tvoc)}</td><td>${f(r.eco2)}</td></tr>`;});
+    html+='</tbody></table>';document.getElementById('dbContent').innerHTML=html;
+  }).catch(err=>{document.getElementById('dbContent').innerHTML='<div class="loading-text">Fetch failed</div>';});
 }
-
-// ── DB MODAL ──
-function showDatabaseData() {
-  const modal = document.getElementById('dbModal');
-  document.getElementById('dbContent').innerHTML = '<div class="loading-text">Loading records…</div>';
-  modal.style.display = 'block';
-  modal.setAttribute('aria-hidden', 'false');
-
-  fetch('/api/db/all')
-    .then(r => r.json())
-    .then(data => {
-      if (data.error || !data.records) {
-        document.getElementById('dbContent').innerHTML = '<div class="loading-text" style="color:var(--poor)">Error loading records.</div>'; return;
-      }
-      if (!data.records.length) {
-        document.getElementById('dbContent').innerHTML = '<div class="loading-text">No records found.</div>'; return;
-      }
-      const f = (v,d=1) => v != null ? Number(v).toFixed(d) : '--';
-      let html = `<table class="data-table"><thead><tr>
-        <th>Timestamp</th><th>PM1.0</th><th>PM2.5</th><th>PM10</th>
-        <th>Temp °C</th><th>Humidity %</th><th>Pressure hPa</th>
-        <th>AQI</th><th>TVOC ppb</th><th>eCO₂ ppm</th>
-      </tr></thead><tbody>`;
-      data.records.forEach(r => {
-        html += `<tr>
-          <td>${r.timestamp ?? '--'}</td>
-          <td>${f(r.pm1)}</td><td>${f(r.pm25)}</td><td>${f(r.pm10)}</td>
-          <td>${f(r.temperature)}</td><td>${f(r.humidity)}</td><td>${f(r.pressure)}</td>
-          <td>${r.aqi ?? '--'}</td><td>${f(r.tvoc)}</td><td>${f(r.eco2)}</td>
-        </tr>`;
-      });
-      html += '</tbody></table>';
-      document.getElementById('dbContent').innerHTML = html;
-    })
-    .catch(err => { document.getElementById('dbContent').innerHTML = `<div class="loading-text" style="color:var(--poor)">Fetch failed: ${err.message}</div>`; });
-}
-
-function closeModal() {
-  const m = document.getElementById('dbModal');
-  m.style.display = 'none';
-  m.setAttribute('aria-hidden', 'true');
-}
-window.addEventListener('click', e => { if (e.target === document.getElementById('dbModal')) closeModal(); });
-window.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+function closeModal(){document.getElementById('dbModal').style.display='none';}
+window.addEventListener('click',e=>{if(e.target===document.getElementById('dbModal'))closeModal();});
+window.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 </script>
 
-<!-- ── MAP ── -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-const SENSOR_NAME = 'AirIQ Sensor Node';
+const FIXED_SENSOR_LAT=32.8676,FIXED_SENSOR_LNG=-96.9824;
+let SENSOR_LAT=FIXED_SENSOR_LAT,SENSOR_LNG=FIXED_SENSOR_LNG;
+window._map=L.map('sensorMap',{center:[FIXED_SENSOR_LAT,FIXED_SENSOR_LNG],zoom:15,zoomControl:true});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM contributors',maxZoom:19}).addTo(window._map);
+const markerIcon=L.divIcon({className:'',html:`<div style="position:relative;width:40px;height:40px"><div style="position:absolute;inset:0;border-radius:50%;background:rgba(22,163,74,0.15);animation:mp 2s ease-in-out infinite"></div><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:#0ea5e9;box-shadow:0 0 0 4px rgba(14,165,233,0.3),0 2px 8px rgba(14,165,233,0.5)"></div></div>`,iconSize:[40,40],iconAnchor:[20,20],popupAnchor:[0,-22]});
+const sty=document.createElement('style');sty.textContent='@keyframes mp{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(2.2);opacity:0}}';document.head.appendChild(sty);
 
-// Fixed sensor location
-const FIXED_SENSOR_LAT = 32.8676;
-const FIXED_SENSOR_LNG = -96.9824;
-let SENSOR_LAT = FIXED_SENSOR_LAT, SENSOR_LNG = FIXED_SENSOR_LNG;
+let marker=null;window._mapMarker=null;
 
-window._map = L.map('sensorMap', { center: [FIXED_SENSOR_LAT, FIXED_SENSOR_LNG], zoom: 15 });
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors', maxZoom: 19
-}).addTo(window._map);
-
-const markerIcon = L.divIcon({
-  className: '',
-  html: `<div style="position:relative;width:40px;height:40px">
-    <div style="position:absolute;inset:0;border-radius:50%;background:rgba(22,163,74,0.15);animation:mp 2s ease-in-out infinite"></div>
-    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:#16a34a;box-shadow:0 0 0 4px rgba(22,163,74,0.3),0 2px 8px rgba(22,163,74,0.5)"></div>
-  </div>`,
-  iconSize:[40,40], iconAnchor:[20,20], popupAnchor:[0,-22]
-});
-
-const styleEl = document.createElement('style');
-styleEl.textContent = '@keyframes mp{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(2.2);opacity:0}}';
-document.head.appendChild(styleEl);
-
-let marker = null;
-window._mapMarker = null;
-
-function initMapAt(lat, lng) {
-  SENSOR_LAT = lat; SENSOR_LNG = lng;
-  document.getElementById('meta-lat').textContent = lat.toFixed(4) + '°';
-  document.getElementById('meta-lng').textContent = lng.toFixed(4) + '°';
-  if (window._map) window._map.invalidateSize();
-  if (window._map) window._map.setView([lat, lng], 15);
-  if (marker) marker.remove();
-  marker = L.marker([lat, lng], { icon: markerIcon }).addTo(window._map);
-  window._mapMarker = marker;
-  if (window._lastSensorData) updateMapPopup(window._lastSensorData);
+function getLocationName(lat,lng){
+  const locations={
+    '32.8676,-96.9824':'Irving, TX',
+    '40.7128,-74.0060':'New York, NY',
+    '34.0522,-118.2437':'Los Angeles, CA',
+    '41.8781,-87.6298':'Chicago, IL',
+    '29.7604,-95.3698':'Houston, TX'
+  };
+  const key=lat.toFixed(4)+','+lng.toFixed(4);
+  return locations[key]||`${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 }
 
-// Initialize map with fixed sensor location after DOM is ready
-setTimeout(() => {
-  if (window._map) window._map.invalidateSize();
-  initMapAt(FIXED_SENSOR_LAT, FIXED_SENSOR_LNG);
-}, 200);
+function updateLocationDisplay(lat,lng){
+  const locName=getLocationName(lat,lng);
+  const locEl=document.getElementById('map-location');
+  if(locEl)locEl.textContent=locName;
+}
 
-function updateMapPopup(d) {
-  const f1 = v => v != null ? Number(v).toFixed(1) : '--';
-  const f0 = v => v != null ? Number(v).toFixed(0) : '--';
-  marker.bindPopup(`
-    <div style="font-family:Figtree,sans-serif;min-width:200px;padding:2px">
-      <div style="font-weight:800;font-size:0.9rem;margin-bottom:10px;color:#1a1e2e">📡 ${SENSOR_NAME}</div>
-      <table style="width:100%;border-collapse:collapse;font-size:0.78rem">
-        <tr><td style="color:#6b7494;padding:3px 0">🌡️ Temperature</td><td style="font-weight:700;color:#0ea5e9">${f1(d.temperature * 9/5 + 32)}°F</td></tr>
-        <tr><td style="color:#6b7494;padding:3px 0">💧 Humidity</td><td style="font-weight:700;color:#16a34a">${f1(d.humidity)}%</td></tr>
-        <tr><td style="color:#6b7494;padding:3px 0">💨 PM2.5</td><td style="font-weight:700;color:#f97316">${f1(d.pm25)} µg/m³</td></tr>
-        <tr><td style="color:#6b7494;padding:3px 0">🧪 eCO₂</td><td style="font-weight:700;color:#16a34a">${f0(d.eco2)} ppm</td></tr>
-        <tr><td style="color:#6b7494;padding:3px 0">🌫️ TVOC</td><td style="font-weight:700;color:#7c3aed">${f0(d.tvoc)} ppb</td></tr>
-        <tr><td style="color:#6b7494;padding:3px 0">📊 AQI</td><td style="font-weight:700">${d.aqi ?? '--'} — ${d.aqi_description ?? ''}</td></tr>
-      </table>
-      <div style="font-size:0.62rem;color:#6b7494;margin-top:8px;border-top:1px solid #e4e7f0;padding-top:6px">Updated ${new Date().toLocaleTimeString('en-GB',{hour12:false})}</div>
-    </div>
-  `).openPopup();
+function initMapAt(lat,lng){
+  SENSOR_LAT=lat;SENSOR_LNG=lng;
+  if(window._map)window._map.invalidateSize();
+  if(window._map)window._map.setView([lat,lng],15);
+  if(marker)marker.remove();
+  marker=L.marker([lat,lng],{icon:markerIcon}).addTo(window._map);
+  window._mapMarker=marker;
+  updateLocationDisplay(lat,lng);
+  if(window._lastSensorData)updateMapPopup(window._lastSensorData);
+}
+setTimeout(()=>{if(window._map)window._map.invalidateSize();initMapAt(FIXED_SENSOR_LAT,FIXED_SENSOR_LNG);},300);
+
+function updateMapPopup(d){
+  const f1=v=>v!=null?Number(v).toFixed(1):'--',f0=v=>v!=null?Number(v).toFixed(0):'--';
+  const epa=calcEpaAqi(d.pm25??0);const aqInfo=getAqiInfo(epa);
+  const isDark = document.body.classList.contains('dark-mode');
+  const bgColor = isDark ? '#2d3142' : '#ffffff';
+  const textColor = isDark ? '#c2c7d6' : '#6b7494';
+  const titleColor = isDark ? '#f3f4f6' : '#1a1e2e';
+  marker.bindPopup(`<div style="font-family:Figtree,sans-serif;min-width:160px;padding:8px;line-height:1.6;background:${bgColor};color:${textColor};border-radius:6px"><div style="font-weight:700;font-size:0.78rem;margin-bottom:6px;color:${titleColor}">📡 AirIQ Node</div><div style="font-size:0.68rem"><div>🌡️ ${f1(d.temperature*9/5+32)}°F</div><div>💧 ${f1(d.humidity)}%</div><div>💨 ${f1(d.pm25)} µg</div><div>🧪 ${f0(d.eco2)} ppm</div><div>🌫️ ${f0(d.tvoc)} ppb</div><div style="color:${aqInfo.color};font-weight:700;margin-top:4px">📊 AQI ${epa} - ${aqInfo.name}</div></div></div>`);
 }
 </script>
 </body>

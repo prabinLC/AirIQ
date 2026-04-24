@@ -99,6 +99,44 @@ def get_history_24h():
                    for i in range(24)][::-1]
     
     return history
+
+def get_history_30m():
+    """Get last 30 minutes of readings with all data points"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    # Calculate cutoff time matching DB format (space, not T)
+    cutoff = (datetime.now() - timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Get all data from last 30 minutes using string comparison
+    c.execute('''
+        SELECT 
+            strftime('%H:%M', timestamp) as time,
+            pm1, pm25, pm10, temperature, humidity, pressure, gas, altitude, aqi, tvoc, eco2
+        FROM readings
+        WHERE timestamp > ?
+        ORDER BY timestamp
+    ''', (cutoff,))
+    
+    rows = c.fetchall()
+    conn.close()
+    
+    history = [{
+        'time': row[0], 'pm1': row[1], 'pm25': row[2], 'pm10': row[3],
+        'temperature': row[4], 'humidity': row[5], 'pressure': row[6],
+        'gas': row[7], 'altitude': row[8], 'aqi': row[9], 'tvoc': row[10], 'eco2': row[11]
+    } for row in rows]
+    
+    # If no data, return placeholder with current time
+    if not history:
+        now = datetime.now()
+        history = [{'time': (now - timedelta(minutes=i)).strftime('%H:%M'), 'pm1': 0, 'pm25': 0, 'pm10': 0,
+                   'temperature': 0, 'humidity': 0, 'pressure': 0, 'gas': 0, 'altitude': 0, 'aqi': 0, 'tvoc': 0, 'eco2': 0} 
+                   for i in range(30)][::-1]
+    
+    return history
+    
+    return history
     
     # If no data, return placeholder with current time
     if not history:
@@ -124,14 +162,23 @@ def get_all_records():
     } for row in rows]
     return records
 
-def clear_old_data(days=30):
-    """Remove readings older than specified days"""
+def clear_old_data(days=7):
+    """Remove readings older than specified days (default: 7 days)"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('DELETE FROM readings WHERE timestamp < datetime("now", "-" || ? || " days")',
               (days,))
+    deleted = c.rowcount
     conn.commit()
     conn.close()
+    return deleted
+
+def cleanup_old_records(days=7):
+    """Automatically cleanup records older than specified days"""
+    deleted = clear_old_data(days)
+    if deleted > 0:
+        print(f"[DB Cleanup] Deleted {deleted} records older than {days} days")
+    return deleted
 
 # Initialize on import
 init_db()

@@ -44,8 +44,34 @@ bme680 = None
 ens160 = None
 sensor_lock = threading.Lock()
 
+def calculate_epa_aqi(pm25):
+    """Calculate EPA AQI from PM2.5 reading"""
+    if pm25 is None:
+        return None
+    
+    # EPA AQI breakpoints for PM2.5 (µg/m³)
+    # AQI formula: ((IHi - ILo) / (BPhi - BPlo)) * (Cp - BPlo) + ILo
+    breakpoints = [
+        (0, 12.0, 0, 50),           # Good
+        (12.1, 35.4, 51, 100),      # Moderate
+        (35.5, 55.4, 101, 150),     # Unhealthy for Sensitive Groups
+        (55.5, 150.4, 151, 200),    # Unhealthy
+        (150.5, 250.4, 201, 300),   # Very Unhealthy
+        (250.5, float('inf'), 301, 500),  # Hazardous
+    ]
+    
+    for bp_lo, bp_hi, aqi_lo, aqi_hi in breakpoints:
+        if bp_lo <= pm25 <= bp_hi:
+            aqi = ((aqi_hi - aqi_lo) / (bp_hi - bp_lo)) * (pm25 - bp_lo) + aqi_lo
+            return round(aqi)
+    
+    return 0
+
 def get_air_quality_level(pm25):
     """Get air quality level based on PM2.5"""
+    if pm25 is None:
+        pm25 = 0
+    
     if pm25 <= 12:
         return {'level': 'Good', 'color': '#00e400', 'description': 'Air quality is satisfactory'}
     elif pm25 <= 35:
@@ -162,9 +188,12 @@ def get_data():
     with sensor_lock:
         data = sensor_data.copy()
     
-    # Add air quality level based on PM2.5
+    # Add air quality level based on PM2.5 (EPA AQI standard)
     aqi_level = get_air_quality_level(data['pm25_atm'])
+    epa_aqi = calculate_epa_aqi(data['pm25_atm'])
     data['pm_aqi'] = aqi_level
+    data['aqi'] = epa_aqi  # Override ENS160 AQI with EPA AQI based on PM2.5
+    data['aqi_description'] = aqi_level['level']
     
     return jsonify(data)
 
@@ -185,6 +214,7 @@ def get_history():
     
     # Format current data for frontend
     pm_aqi = get_air_quality_level(current_data['pm25_atm'])
+    epa_aqi = calculate_epa_aqi(current_data['pm25_atm'])
     current = {
         'pm1': round(current_data['pm1_atm'], 1),
         'pm25': round(current_data['pm25_atm'], 1),
@@ -194,8 +224,8 @@ def get_history():
         'pressure': round(current_data['pressure'], 1),
         'gas': round(current_data['gas'], 0),
         'altitude': round(current_data['altitude'], 1),
-        'aqi': current_data['aqi'],
-        'aqi_description': current_data['aqi_description'],
+        'aqi': epa_aqi,  # Use calculated EPA AQI instead of ENS160 value
+        'aqi_description': pm_aqi['level'],
         'tvoc': round(current_data['tvoc'], 1),
         'eco2': round(current_data['eco2'], 1),
         'timestamp': current_data['timestamp'],

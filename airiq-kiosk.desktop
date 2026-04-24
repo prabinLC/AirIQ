@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=AirIQ Kiosk
+Comment=Start AirIQ Dashboard in kiosk mode
+Exec=/home/airiq/Desktop/finalProject/AirIQ/airiq-kiosk.sh
+StartupNotify=false
+Terminal=false
+Categories=Utility;
